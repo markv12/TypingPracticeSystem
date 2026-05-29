@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypoDeco - Elevated Typing Practice</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">TypoDeco</div>
+            <nav>
+                <button id="nav-practice" class="active">Practice</button>
+                <button id="nav-stats">Statistics</button>
+            </nav>
+        </header>
+
+        <main id="view-practice" class="view active-view">
+            <div class="top-bar">
+                <div class="wpm-display" id="wpm-display">
+                    <span class="wpm-label">Previous WPM</span>
+                    <span class="wpm-value" id="prev-wpm">--</span>
+                </div>
+            </div>
+
+            <div class="typing-container" id="typing-container">
+                <!-- Words will be injected here -->
+            </div>
+            
+            <div class="keyboard-hint">Begin typing to start</div>
+        </main>
+
+        <main id="view-stats" class="view">
+            <h2>Your Performance</h2>
+            <div class="data-controls">
+                <button id="btn-export" class="deco-btn">Export Data</button>
+                <label for="file-import" class="deco-btn outline">Import Data</label>
+                <input type="file" id="file-import" accept=".json" style="display: none;">
+                <div class="filter-control">
+                    <label for="filter-ignore-space" class="checkbox-label">
+                        <input type="checkbox" id="filter-ignore-space" class="deco-checkbox">
+                        Ignore Spaces
+                    </label>
+                    <label for="filter-min-seen" style="margin-left: 0.5rem;">Min Occurrences:</label>
+                    <input type="number" id="filter-min-seen" value="5" min="1" class="deco-input">
+                </div>
+            </div>
+
+            <h3 class="section-title">Slowest Typing</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Letters</h4>
+                    <div class="stat-table-header">
+                        <span>Letter</span>
+                        <span>Avg Time</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-worst-letters" class="stat-list"></ul>
+                </div>
+                <div class="stat-card">
+                    <h4>Bigrams</h4>
+                    <div class="stat-table-header">
+                        <span>Bigram</span>
+                        <span>Avg Time</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-worst-bigrams" class="stat-list"></ul>
+                </div>
+                <div class="stat-card">
+                    <h4>Trigrams</h4>
+                    <div class="stat-table-header">
+                        <span>Trigram</span>
+                        <span>Avg Time</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-worst-trigrams" class="stat-list"></ul>
+                </div>
+            </div>
+
+            <h3 class="section-title">Most Mistakes</h3>
+            <div class="stats-grid" style="margin-top: 1.5rem;">
+                <div class="stat-card">
+                    <h4>Letters</h4>
+                    <div class="stat-table-header">
+                        <span>Letter</span>
+                        <span>Mistakes</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-mistakes-letters" class="stat-list"></ul>
+                </div>
+                <div class="stat-card">
+                    <h4>Bigrams</h4>
+                    <div class="stat-table-header">
+                        <span>Bigram</span>
+                        <span>Mistakes</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-mistakes-bigrams" class="stat-list"></ul>
+                </div>
+                <div class="stat-card">
+                    <h4>Trigrams</h4>
+                    <div class="stat-table-header">
+                        <span>Trigram</span>
+                        <span>Mistakes</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-mistakes-trigrams" class="stat-list"></ul>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="words.js"></script>
+    <script src="stats.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
