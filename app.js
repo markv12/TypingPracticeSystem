@@ -12,6 +12,7 @@ let runStartTime = null;
 let lastKeystrokeTime = null;
 let hadMistake = []; // boolean array tracking if a mistake was made at index
 let isRetyped = []; // boolean array tracking if a character was backspaced over
+let isCleanTiming = []; // boolean array tracking if the keystroke was clean (no mistake, no long pause)
 let invalidNextTiming = false; // flag to skip timing if we just backspaced
 
 let syncFileHandle = null;
@@ -152,6 +153,7 @@ function startNewRun() {
     lastKeystrokeTime = null;
     hadMistake = new Array(targetText.length).fill(false);
     isRetyped = new Array(targetText.length).fill(false);
+    isCleanTiming = new Array(targetText.length).fill(false);
     invalidNextTiming = false;
     
     renderWords();
@@ -237,6 +239,9 @@ function handleKeyDown(e) {
             // Move cursor back over target text
             currentIndex--;
             charSpans[currentIndex].classList.remove('correct', 'was-mistake');
+            if (targetText[currentIndex] === ' ') {
+                charSpans[currentIndex].textContent = ' ';
+            }
             invalidNextTiming = true; // We don't want to track the time for the next correct char because it's a correction
             isRetyped[currentIndex] = true; // Mark as having been retyped so we don't track its timing
             updateCursor();
@@ -251,14 +256,17 @@ function handleKeyDown(e) {
         // Mistake!
         // Record mistake if it's the first mistake at this position
         if (extraChars.length === 0 && currentIndex < targetText.length) {
-            statsTracker.recordMistake(expectedChar, e.key);
-            if (currentIndex >= 1) {
-                const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
-                statsTracker.recordMistake(bigram, e.key);
-            }
-            if (currentIndex >= 2) {
-                const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
-                statsTracker.recordMistake(trigram, e.key);
+            const timeDiff = lastKeystrokeTime ? (now - lastKeystrokeTime) : 0;
+            if (timeDiff <= 1500) {
+                statsTracker.recordMistake(expectedChar, e.key);
+                if (currentIndex >= 1) {
+                    const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
+                    statsTracker.recordMistake(bigram, e.key);
+                }
+                if (currentIndex >= 2 && isCleanTiming[currentIndex - 1]) {
+                    const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
+                    statsTracker.recordMistake(trigram, e.key);
+                }
             }
             hadMistake[currentIndex] = true;
         }
@@ -266,7 +274,7 @@ function handleKeyDown(e) {
         // Create an extra char element and insert it BEFORE the current expected char
         const span = document.createElement('span');
         span.className = 'char wrong extra';
-        span.textContent = e.key;
+        span.textContent = e.key === ' ' ? '_' : e.key;
         
         if (currentIndex < charSpans.length) {
             charSpans[currentIndex].parentNode.insertBefore(span, charSpans[currentIndex]);
@@ -285,8 +293,13 @@ function handleKeyDown(e) {
         } else {
             const timeDiff = now - lastKeystrokeTime;
             
-            // Only record timing if no mistake was made here, not retyped, and we didn't just backspace
-            if (!hadMistake[currentIndex] && !isRetyped[currentIndex] && !invalidNextTiming) {
+            let isClean = true;
+            if (timeDiff > 1500) isClean = false;
+            if (hadMistake[currentIndex]) isClean = false;
+            if (isRetyped[currentIndex]) isClean = false;
+            if (invalidNextTiming) isClean = false;
+
+            if (isClean) {
                 // Record Letter
                 statsTracker.recordTiming(expectedChar, timeDiff);
                 
@@ -297,10 +310,12 @@ function handleKeyDown(e) {
                 }
                 
                 // Record Trigram
-                if (currentIndex >= 2) {
+                if (currentIndex >= 2 && isCleanTiming[currentIndex - 1]) {
                     const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
                     statsTracker.recordTiming(trigram, timeDiff);
                 }
+                
+                isCleanTiming[currentIndex] = true;
             }
             
             lastKeystrokeTime = now;
@@ -310,6 +325,9 @@ function handleKeyDown(e) {
         // Advance
         if (hadMistake[currentIndex]) {
             charSpans[currentIndex].classList.add('was-mistake');
+            if (expectedChar === ' ') {
+                charSpans[currentIndex].textContent = '_';
+            }
         } else {
             charSpans[currentIndex].classList.add('correct');
         }
@@ -502,7 +520,7 @@ function populateStatList(elementId, items, primaryStat) {
         const seqSpan = document.createElement('span');
         seqSpan.className = 'stat-seq';
         // Replace space with a visible character for clarity in stats
-        seqSpan.textContent = item.sequence.replace(/ /g, '␣');
+        seqSpan.textContent = item.sequence.replace(/ /g, '_');
         
         const col2Span = document.createElement('span');
         col2Span.className = 'stat-time';
@@ -537,7 +555,7 @@ function populateStatList(elementId, items, primaryStat) {
             // Sort details by count descending
             const details = Object.entries(item.mistakeDetails)
                 .sort((a, b) => b[1] - a[1])
-                .map(([seq, count]) => `${seq.replace(/ /g, '␣')}: ${count}`)
+                .map(([seq, count]) => `${seq.replace(/ /g, '_')}: ${count}`)
                 .join('\n');
                 
             tooltip.textContent = details;
