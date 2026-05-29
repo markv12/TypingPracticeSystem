@@ -1,4 +1,4 @@
-const NUM_WORDS = 50;
+const NUM_WORDS = 48;
 
 // State
 let statsTracker = new StatsTracker();
@@ -84,13 +84,65 @@ function init() {
     document.addEventListener('keydown', handleKeyDown);
 }
 
-function getRandomWords(count) {
-    const shuffled = [...demoWords].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
+function getPracticeWords(count) {
+    const minSamples = parseInt(minSeenInput.value, 10) || 1;
+    
+    const worstSequences = [
+        ...statsTracker.getWorst('letters', 5, minSamples, true),
+        ...statsTracker.getWorst('bigrams', 5, minSamples, true),
+        ...statsTracker.getWorst('trigrams', 5, minSamples, true)
+    ].map(s => s.sequence);
+
+    const mistakeSequences = [
+        ...statsTracker.getMostMistakes('letters', 5, minSamples, true),
+        ...statsTracker.getMostMistakes('bigrams', 5, minSamples, true),
+        ...statsTracker.getMostMistakes('trigrams', 5, minSamples, true)
+    ].map(s => s.sequence);
+
+    const words = [];
+    const countSlow = Math.floor(count / 3);
+    const countMistake = Math.floor(count / 3);
+    const countRandom = count - countSlow - countMistake;
+
+    function getWordContaining(seq) {
+        const matching = demoWords.filter(w => w.includes(seq));
+        if (matching.length > 0) {
+            return matching[Math.floor(Math.random() * matching.length)];
+        }
+        return demoWords[Math.floor(Math.random() * demoWords.length)];
+    }
+
+    function getPureRandomWord() {
+        return demoWords[Math.floor(Math.random() * demoWords.length)];
+    }
+
+    for (let i = 0; i < countSlow; i++) {
+        if (worstSequences.length > 0) {
+            const seq = worstSequences[Math.floor(Math.random() * worstSequences.length)];
+            words.push(getWordContaining(seq));
+        } else {
+            words.push(getPureRandomWord());
+        }
+    }
+
+    for (let i = 0; i < countMistake; i++) {
+        if (mistakeSequences.length > 0) {
+            const seq = mistakeSequences[Math.floor(Math.random() * mistakeSequences.length)];
+            words.push(getWordContaining(seq));
+        } else {
+            words.push(getPureRandomWord());
+        }
+    }
+
+    for (let i = 0; i < countRandom; i++) {
+        words.push(getPureRandomWord());
+    }
+
+    return words.sort(() => 0.5 - Math.random());
 }
 
 function startNewRun() {
-    currentWords = getRandomWords(NUM_WORDS);
+    currentWords = getPracticeWords(NUM_WORDS);
     targetText = currentWords.join(' ');
     
     // Reset state
@@ -425,14 +477,14 @@ function renderStats() {
     const ignoreSpaces = ignoreSpaceInput.checked;
     
     // Slowest
-    populateStatList('list-worst-letters', statsTracker.getWorst('letters', 10, minSamples, ignoreSpaces), 'time');
-    populateStatList('list-worst-bigrams', statsTracker.getWorst('bigrams', 10, minSamples, ignoreSpaces), 'time');
-    populateStatList('list-worst-trigrams', statsTracker.getWorst('trigrams', 10, minSamples, ignoreSpaces), 'time');
+    populateStatList('list-worst-letters', statsTracker.getWorst('letters', 20, minSamples, ignoreSpaces), 'time');
+    populateStatList('list-worst-bigrams', statsTracker.getWorst('bigrams', 20, minSamples, ignoreSpaces), 'time');
+    populateStatList('list-worst-trigrams', statsTracker.getWorst('trigrams', 20, minSamples, ignoreSpaces), 'time');
 
     // Most Mistakes
-    populateStatList('list-mistakes-letters', statsTracker.getMostMistakes('letters', 10, minSamples, ignoreSpaces), 'mistakes');
-    populateStatList('list-mistakes-bigrams', statsTracker.getMostMistakes('bigrams', 10, minSamples, ignoreSpaces), 'mistakes');
-    populateStatList('list-mistakes-trigrams', statsTracker.getMostMistakes('trigrams', 10, minSamples, ignoreSpaces), 'mistakes');
+    populateStatList('list-mistakes-letters', statsTracker.getMostMistakes('letters', 20, minSamples, ignoreSpaces), 'mistakes');
+    populateStatList('list-mistakes-bigrams', statsTracker.getMostMistakes('bigrams', 20, minSamples, ignoreSpaces), 'mistakes');
+    populateStatList('list-mistakes-trigrams', statsTracker.getMostMistakes('trigrams', 20, minSamples, ignoreSpaces), 'mistakes');
 }
 
 function populateStatList(elementId, items, primaryStat) {
