@@ -14,6 +14,55 @@ let hadMistake = []; // boolean array tracking if a mistake was made at index
 let isRetyped = []; // boolean array tracking if a character was backspaced over
 let invalidNextTiming = false; // flag to skip timing if we just backspaced
 
+let syncFileHandle = null;
+
+// --- IndexedDB for File Handle Persistence ---
+const DB_NAME = 'TypoDecoDB';
+const STORE_NAME = 'handles';
+
+function getDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = (e) => {
+            e.target.result.createObjectStore(STORE_NAME);
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveHandle(handle) {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(handle, 'syncHandle');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+async function loadHandle() {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get('syncHandle');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+// ---------------------------------------------
+
+async function syncDataToFile() {
+    if (!syncFileHandle) return;
+    try {
+        const writable = await syncFileHandle.createWritable();
+        await writable.write(JSON.stringify(statsTracker.data));
+        await writable.close();
+    } catch (e) {
+        console.error("Failed to sync to file:", e);
+    }
+}
+
 // DOM Elements
 const typingContainer = document.getElementById('typing-container');
 const prevWpmEl = document.getElementById('prev-wpm');
@@ -107,6 +156,10 @@ function finishRun() {
     const wpm = (targetText.length / 5) / timeInMinutes;
     
     prevWpmEl.textContent = Math.round(wpm);
+    
+    // Auto-sync
+    syncDataToFile();
+    
     startNewRun();
 }
 
@@ -284,6 +337,87 @@ function setupStatsControls() {
         };
         reader.readAsText(file);
     });
+
+    const btnSync = document.getElementById('btn-sync');
+    if ('showOpenFilePicker' in window) {
+        btnSync.style.display = 'inline-block';
+        
+        // Try to load existing handle from IndexedDB
+        loadHandle().then(async (handle) => {
+            if (handle) {
+                syncFileHandle = handle;
+                if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+                    // We have permission! Load data
+                    try {
+                        const file = await handle.getFile();
+                        const text = await file.text();
+                        if (text && text.trim().length > 0) {
+                            statsTracker.importData(text);
+                            if (viewStats.classList.contains('active-view')) renderStats();
+                        }
+                        btnSync.textContent = `Syncing to: ${handle.name}`;
+                        btnSync.classList.remove('outline');
+                    } catch (e) {
+                        console.error("Failed to read from restored handle", e);
+                    }
+                } else {
+                    // We have the handle but need the user to click to request permission
+                    btnSync.textContent = `Resume Sync: ${handle.name}`;
+                }
+            }
+        }).catch(e => console.error("Could not load handle from IndexedDB", e));
+
+        btnSync.addEventListener('click', async () => {
+            try {
+                // If we have a handle but lack permission, just request permission
+                if (syncFileHandle && (await syncFileHandle.queryPermission({mode: 'readwrite'})) !== 'granted') {
+                    if ((await syncFileHandle.requestPermission({mode: 'readwrite'})) === 'granted') {
+                        const file = await syncFileHandle.getFile();
+                        const text = await file.text();
+                        if (text && text.trim().length > 0) {
+                            statsTracker.importData(text);
+                            if (viewStats.classList.contains('active-view')) renderStats();
+                        }
+                        btnSync.textContent = `Syncing to: ${syncFileHandle.name}`;
+                        btnSync.classList.remove('outline');
+                        await syncDataToFile();
+                    }
+                    return; 
+                }
+
+                // Normal flow: select new file
+                const [handle] = await window.showOpenFilePicker({
+                    types: [{
+                        description: 'JSON Files',
+                        accept: { 'application/json': ['.json'] },
+                    }],
+                    multiple: false
+                });
+                
+                const file = await handle.getFile();
+                const text = await file.text();
+                
+                if (text && text.trim().length > 0) {
+                    const success = statsTracker.importData(text);
+                    if (!success) {
+                        alert('The selected file is not a valid TypoDeco save file. Sync aborted to prevent overwriting your file.');
+                        return;
+                    }
+                    if (viewStats.classList.contains('active-view')) renderStats();
+                }
+
+                syncFileHandle = handle;
+                await saveHandle(handle); // Save to IndexedDB
+                
+                btnSync.textContent = `Syncing to: ${syncFileHandle.name}`;
+                btnSync.classList.remove('outline');
+                
+                await syncDataToFile();
+            } catch (e) {
+                console.error(e);
+            }
+        });
+    }
 }
 
 function renderStats() {
