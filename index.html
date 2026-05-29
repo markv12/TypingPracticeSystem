@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypoDeco - Elevated Typing Practice</title>
+    <title>TypeDeck - Elevated Typing Practice</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,7 +13,7 @@
 <body>
     <div class="app-container">
         <header>
-            <div class="logo">TypoDeco</div>
+            <div class="logo">TypeDeck</div>
             <nav>
                 <button id="nav-practice" class="active">Practice</button>
                 <button id="nav-stats">Statistics</button>
@@ -47,7 +47,11 @@
                         Ignore Spaces
                     </label>
                     <label for="filter-min-seen" style="margin-left: 0.5rem;">Min Occurrences:</label>
-                    <input type="number" id="filter-min-seen" value="5" min="1" class="deco-input">
+                    <div class="number-input-wrapper">
+                        <button id="min-seen-dec" class="num-btn">-</button>
+                        <input type="number" id="filter-min-seen" value="5" min="1" class="deco-input no-spin">
+                        <button id="min-seen-inc" class="num-btn">+</button>
+                    </div>
                 </div>
             </div>
 

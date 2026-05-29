@@ -9,7 +9,7 @@ class StatsTracker {
 
     _ensureExists(dict, key) {
         if (!dict[key]) {
-            dict[key] = { times: [], mistakes: 0 };
+            dict[key] = { times: [] };
         }
     }
 
@@ -24,7 +24,7 @@ class StatsTracker {
         targetDict[sequence].times.push(time);
     }
 
-    recordMistake(sequence) {
+    recordMistake(sequence, typedKey) {
         let targetDict;
         if (sequence.length === 1) targetDict = this.data.letters;
         else if (sequence.length === 2) targetDict = this.data.bigrams;
@@ -32,7 +32,22 @@ class StatsTracker {
         else return;
         
         this._ensureExists(targetDict, sequence);
-        targetDict[sequence].mistakes += 1;
+
+        if (!targetDict[sequence].mistakes) {
+            targetDict[sequence].mistakes = {};
+        }
+
+        if (typedKey) {
+            let typedSequence;
+            if (sequence.length === 1) typedSequence = typedKey;
+            else if (sequence.length === 2) typedSequence = sequence[0] + typedKey;
+            else if (sequence.length === 3) typedSequence = sequence.substring(0, 2) + typedKey;
+
+            if (!targetDict[sequence].mistakes[typedSequence]) {
+                targetDict[sequence].mistakes[typedSequence] = 0;
+            }
+            targetDict[sequence].mistakes[typedSequence] += 1;
+        }
     }
 
     exportData() {
@@ -41,7 +56,7 @@ class StatsTracker {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `typodeco_stats_${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `typedeck_stats_${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -69,11 +84,18 @@ class StatsTracker {
             const avgTime = item.times.length > 0 
                 ? item.times.reduce((a, b) => a + b, 0) / item.times.length 
                 : 0;
+            
+            let totalMistakes = 0;
+            if (item.mistakes) {
+                totalMistakes = Object.values(item.mistakes).reduce((a, b) => a + b, 0);
+            }
+
             return {
                 sequence: key,
                 avgTime: avgTime,
                 samples: item.times.length,
-                mistakes: item.mistakes
+                mistakes: totalMistakes,
+                mistakeDetails: item.mistakes || {}
             };
         }).filter(item => {
             if (ignoreSpaces && item.sequence.includes(' ')) return false;
@@ -94,19 +116,29 @@ class StatsTracker {
             const avgTime = item.times.length > 0 
                 ? item.times.reduce((a, b) => a + b, 0) / item.times.length 
                 : 0;
+            
+            let totalMistakes = 0;
+            if (item.mistakes) {
+                totalMistakes = Object.values(item.mistakes).reduce((a, b) => a + b, 0);
+            }
+
+            const occurrences = item.times.length + totalMistakes;
+            const mistakeRatio = occurrences > 0 ? totalMistakes / occurrences : 0;
             return {
                 sequence: key,
                 avgTime: avgTime,
                 samples: item.times.length,
-                mistakes: item.mistakes
+                mistakes: totalMistakes,
+                mistakeRatio: mistakeRatio,
+                mistakeDetails: item.mistakes || {}
             };
         }).filter(item => {
             if (ignoreSpaces && item.sequence.includes(' ')) return false;
             return (item.samples + item.mistakes) >= minSamples;
         });
 
-        // Sort by mistakes descending
-        stats.sort((a, b) => b.mistakes - a.mistakes);
+        // Sort by mistake ratio descending
+        stats.sort((a, b) => b.mistakeRatio - a.mistakeRatio);
         return stats.slice(0, limit);
     }
 }

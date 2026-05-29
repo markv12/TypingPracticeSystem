@@ -11,6 +11,7 @@ let extraChars = []; // Stack of { char: string, element: HTMLElement }
 let runStartTime = null;
 let lastKeystrokeTime = null;
 let hadMistake = []; // boolean array tracking if a mistake was made at index
+let isRetyped = []; // boolean array tracking if a character was backspaced over
 let invalidNextTiming = false; // flag to skip timing if we just backspaced
 
 // DOM Elements
@@ -49,6 +50,7 @@ function startNewRun() {
     runStartTime = null;
     lastKeystrokeTime = null;
     hadMistake = new Array(targetText.length).fill(false);
+    isRetyped = new Array(targetText.length).fill(false);
     invalidNextTiming = false;
     
     renderWords();
@@ -129,9 +131,9 @@ function handleKeyDown(e) {
         } else if (currentIndex > 0) {
             // Move cursor back over target text
             currentIndex--;
-            charSpans[currentIndex].classList.remove('correct');
+            charSpans[currentIndex].classList.remove('correct', 'was-mistake');
             invalidNextTiming = true; // We don't want to track the time for the next correct char because it's a correction
-            hadMistake[currentIndex] = true; // Mark as having had a mistake so we don't track its timing when re-typed
+            isRetyped[currentIndex] = true; // Mark as having been retyped so we don't track its timing
             updateCursor();
         }
         return;
@@ -144,14 +146,14 @@ function handleKeyDown(e) {
         // Mistake!
         // Record mistake if it's the first mistake at this position
         if (extraChars.length === 0 && currentIndex < targetText.length) {
-            statsTracker.recordMistake(expectedChar);
+            statsTracker.recordMistake(expectedChar, e.key);
             if (currentIndex >= 1) {
                 const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
-                statsTracker.recordMistake(bigram);
+                statsTracker.recordMistake(bigram, e.key);
             }
             if (currentIndex >= 2) {
                 const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
-                statsTracker.recordMistake(trigram);
+                statsTracker.recordMistake(trigram, e.key);
             }
             hadMistake[currentIndex] = true;
         }
@@ -178,8 +180,8 @@ function handleKeyDown(e) {
         } else {
             const timeDiff = now - lastKeystrokeTime;
             
-            // Only record timing if no mistake was made here and we didn't just backspace
-            if (!hadMistake[currentIndex] && !invalidNextTiming) {
+            // Only record timing if no mistake was made here, not retyped, and we didn't just backspace
+            if (!hadMistake[currentIndex] && !isRetyped[currentIndex] && !invalidNextTiming) {
                 // Record Letter
                 statsTracker.recordTiming(expectedChar, timeDiff);
                 
@@ -201,7 +203,11 @@ function handleKeyDown(e) {
         }
         
         // Advance
-        charSpans[currentIndex].classList.add('correct');
+        if (hadMistake[currentIndex]) {
+            charSpans[currentIndex].classList.add('was-mistake');
+        } else {
+            charSpans[currentIndex].classList.add('correct');
+        }
         currentIndex++;
         updateCursor();
         
@@ -243,6 +249,20 @@ function setupStatsControls() {
         if (viewStats.classList.contains('active-view')) renderStats();
     });
 
+    document.getElementById('min-seen-dec').addEventListener('click', () => {
+        let val = parseInt(minSeenInput.value, 10);
+        if (val > 1) {
+            minSeenInput.value = val - 1;
+            if (viewStats.classList.contains('active-view')) renderStats();
+        }
+    });
+
+    document.getElementById('min-seen-inc').addEventListener('click', () => {
+        let val = parseInt(minSeenInput.value, 10);
+        minSeenInput.value = val + 1;
+        if (viewStats.classList.contains('active-view')) renderStats();
+    });
+
     ignoreSpaceInput.addEventListener('change', () => {
         if (viewStats.classList.contains('active-view')) renderStats();
     });
@@ -255,7 +275,6 @@ function setupStatsControls() {
         reader.onload = (event) => {
             const success = statsTracker.importData(event.target.result);
             if (success) {
-                alert('Data imported successfully!');
                 if (viewStats.classList.contains('active-view')) {
                     renderStats();
                 }
@@ -312,15 +331,33 @@ function populateStatList(elementId, items, primaryStat) {
             col3Span.textContent = occurrences;
             col3Span.style.color = "var(--text-muted)";
         } else {
-            col2Span.textContent = item.mistakes;
+            const ratio = occurrences > 0 ? item.mistakes / occurrences : 0;
+            const percentage = Math.round(ratio * 10000) / 100;
+            col2Span.textContent = `${percentage}%`;
             col2Span.style.color = "var(--error-red)";
-            col3Span.textContent = occurrences;
+            col3Span.textContent = `${item.mistakes} / ${occurrences}`;
             col3Span.style.color = "var(--text-muted)";
         }
         
         li.appendChild(seqSpan);
         li.appendChild(col2Span);
         li.appendChild(col3Span);
+
+        // Add Tooltip for mistake details
+        if (item.mistakes > 0 && Object.keys(item.mistakeDetails || {}).length > 0) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            
+            // Sort details by count descending
+            const details = Object.entries(item.mistakeDetails)
+                .sort((a, b) => b[1] - a[1])
+                .map(([seq, count]) => `${seq.replace(/ /g, '␣')}: ${count}`)
+                .join('\n');
+                
+            tooltip.textContent = details;
+            li.appendChild(tooltip);
+        }
+
         ul.appendChild(li);
     });
 }

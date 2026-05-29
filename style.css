@@ -158,6 +158,10 @@ nav button.active {
     color: var(--text-main);
 }
 
+.char.was-mistake {
+    color: var(--error-red);
+}
+
 .char.wrong {
     color: var(--error-red);
     text-shadow: 0 0 8px rgba(211, 47, 47, 0.4);
@@ -274,6 +278,55 @@ nav button.active {
     border-color: var(--primary-gold);
 }
 
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.no-spin[type=number] {
+    -moz-appearance: textfield;
+}
+
+.number-input-wrapper {
+    display: flex;
+    align-items: stretch;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 8px;
+    transition: border-color 0.2s ease;
+    overflow: hidden;
+}
+
+.number-input-wrapper:focus-within {
+    border-color: var(--primary-gold);
+}
+
+.number-input-wrapper .deco-input {
+    border: none;
+    background: transparent;
+    width: 40px;
+    border-radius: 0;
+}
+
+.num-btn {
+    background: transparent;
+    color: var(--primary-gold);
+    border: none;
+    width: 30px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background 0.2s, color 0.2s;
+}
+
+.num-btn:hover {
+    background: rgba(212, 175, 55, 0.2);
+    color: #fff;
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -321,7 +374,7 @@ nav button.active {
 
 .stat-table-header span:nth-child(2) {
     width: 40%;
-    text-align: right;
+    text-align: center;
 }
 
 .stat-table-header span:nth-child(3) {
@@ -339,6 +392,7 @@ nav button.active {
     padding: 0.5rem;
     border-radius: 8px;
     font-size: 0.95rem;
+    position: relative;
 }
 
 .stat-list li:nth-child(even) {
@@ -354,11 +408,62 @@ nav button.active {
 .stat-time {
     color: var(--muted-gold);
     width: 40%;
-    text-align: right;
+    text-align: center;
 }
 
 .stat-mistakes {
     color: var(--error-red);
     width: 30%;
     text-align: right;
+}
+
+/* Tooltip Styles */
+.stat-list li .tooltip {
+    visibility: hidden;
+    width: max-content;
+    background-color: var(--bg-card);
+    color: var(--text-main);
+    text-align: left;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    position: absolute;
+    z-index: 10;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    font-size: 1rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    font-family: var(--font-body);
+}
+
+.stat-list li .tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(212, 175, 55, 0.3) transparent transparent transparent;
+}
+
+.stat-list li .tooltip::before {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: 10px;
+}
+
+.stat-list li:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }
