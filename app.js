@@ -258,14 +258,14 @@ function handleKeyDown(e) {
         if (extraChars.length === 0 && currentIndex < targetText.length) {
             const timeDiff = lastKeystrokeTime ? (now - lastKeystrokeTime) : 0;
             if (timeDiff <= 1500) {
-                statsTracker.recordMistake(expectedChar, e.key);
+                statsTracker.recordMistake(expectedChar);
                 if (currentIndex >= 1) {
                     const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
-                    statsTracker.recordMistake(bigram, e.key);
+                    statsTracker.recordMistake(bigram);
                 }
                 if (currentIndex >= 2 && isCleanTiming[currentIndex - 1]) {
                     const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
-                    statsTracker.recordMistake(trigram, e.key);
+                    statsTracker.recordMistake(trigram);
                 }
             }
             hadMistake[currentIndex] = true;
@@ -547,20 +547,7 @@ function populateStatList(elementId, items, primaryStat) {
         li.appendChild(col2Span);
         li.appendChild(col3Span);
 
-        // Add Tooltip for mistake details
-        if (item.mistakes > 0 && Object.keys(item.mistakeDetails || {}).length > 0) {
-            const tooltip = document.createElement('div');
-            tooltip.className = 'tooltip';
-            
-            // Sort details by count descending
-            const details = Object.entries(item.mistakeDetails)
-                .sort((a, b) => b[1] - a[1])
-                .map(([seq, count]) => `${seq.replace(/ /g, '_')}: ${count}`)
-                .join('\n');
-                
-            tooltip.textContent = details;
-            li.appendChild(tooltip);
-        }
+        // Removed tooltip logic since mistake details are no longer tracked.
 
         ul.appendChild(li);
     });

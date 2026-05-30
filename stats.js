@@ -1,7 +1,7 @@
 class StatsTracker {
     constructor() {
         this.data = {
-            letters: {}, // { "a": { times: [], mistakes: 0 } }
+            letters: {}, // { "a": { times: [] } }
             bigrams: {},
             trigrams: {}
         };
@@ -21,10 +21,10 @@ class StatsTracker {
         else return;
 
         this._ensureExists(targetDict, sequence);
-        targetDict[sequence].times.push(time);
+        targetDict[sequence].times.push(Math.round(time));
     }
 
-    recordMistake(sequence, typedKey) {
+    recordMistake(sequence) {
         let targetDict;
         if (sequence.length === 1) targetDict = this.data.letters;
         else if (sequence.length === 2) targetDict = this.data.bigrams;
@@ -33,21 +33,7 @@ class StatsTracker {
         
         this._ensureExists(targetDict, sequence);
 
-        if (!targetDict[sequence].mistakes) {
-            targetDict[sequence].mistakes = {};
-        }
-
-        if (typedKey) {
-            let typedSequence;
-            if (sequence.length === 1) typedSequence = typedKey;
-            else if (sequence.length === 2) typedSequence = sequence[0] + typedKey;
-            else if (sequence.length === 3) typedSequence = sequence.substring(0, 2) + typedKey;
-
-            if (!targetDict[sequence].mistakes[typedSequence]) {
-                targetDict[sequence].mistakes[typedSequence] = 0;
-            }
-            targetDict[sequence].mistakes[typedSequence] += 1;
-        }
+        targetDict[sequence].mistakes = (targetDict[sequence].mistakes || 0) + 1;
     }
 
     exportData() {
@@ -85,17 +71,13 @@ class StatsTracker {
                 ? item.times.reduce((a, b) => a + b, 0) / item.times.length 
                 : 0;
             
-            let totalMistakes = 0;
-            if (item.mistakes) {
-                totalMistakes = Object.values(item.mistakes).reduce((a, b) => a + b, 0);
-            }
+            let totalMistakes = item.mistakes || 0;
 
             return {
                 sequence: key,
                 avgTime: avgTime,
                 samples: item.times.length,
-                mistakes: totalMistakes,
-                mistakeDetails: item.mistakes || {}
+                mistakes: totalMistakes
             };
         }).filter(item => {
             if (ignoreSpaces && item.sequence.includes(' ')) return false;
@@ -117,10 +99,7 @@ class StatsTracker {
                 ? item.times.reduce((a, b) => a + b, 0) / item.times.length 
                 : 0;
             
-            let totalMistakes = 0;
-            if (item.mistakes) {
-                totalMistakes = Object.values(item.mistakes).reduce((a, b) => a + b, 0);
-            }
+            let totalMistakes = item.mistakes || 0;
 
             const occurrences = item.times.length + totalMistakes;
             const mistakeRatio = occurrences > 0 ? totalMistakes / occurrences : 0;
@@ -129,8 +108,7 @@ class StatsTracker {
                 avgTime: avgTime,
                 samples: item.times.length,
                 mistakes: totalMistakes,
-                mistakeRatio: mistakeRatio,
-                mistakeDetails: item.mistakes || {}
+                mistakeRatio: mistakeRatio
             };
         }).filter(item => {
             if (ignoreSpaces && item.sequence.includes(' ')) return false;
