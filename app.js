@@ -75,6 +75,7 @@ const btnStats = document.getElementById('nav-stats');
 const viewPractice = document.getElementById('view-practice');
 const viewStats = document.getElementById('view-stats');
 const minSeenInput = document.getElementById('filter-min-seen');
+const smoothingInput = document.getElementById('filter-smoothing');
 
 function init() {
     setupNavigation();
@@ -420,6 +421,18 @@ function setupStatsControls() {
         if (viewStats.classList.contains('active-view')) renderStats();
     });
 
+    document.getElementById('smoothing-dec').addEventListener('click', () => {
+        let val = parseInt(smoothingInput.value, 10);
+        if (val > 1) {
+            smoothingInput.value = val - 1;
+        }
+    });
+
+    document.getElementById('smoothing-inc').addEventListener('click', () => {
+        let val = parseInt(smoothingInput.value, 10);
+        smoothingInput.value = val + 1;
+    });
+
     document.getElementById('file-import').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -578,7 +591,12 @@ function populateStatList(elementId, items, primaryStat) {
         li.appendChild(col2Span);
         li.appendChild(col3Span);
 
-        // Removed tooltip logic since mistake details are no longer tracked.
+        if (primaryStat === 'time') {
+            const rawSeq = item.sequence;
+            li.addEventListener('mouseenter', (e) => showChartTooltip(e, rawSeq));
+            li.addEventListener('mousemove', (e) => moveChartTooltip(e));
+            li.addEventListener('mouseleave', () => hideChartTooltip());
+        }
 
         ul.appendChild(li);
     });
@@ -586,3 +604,103 @@ function populateStatList(elementId, items, primaryStat) {
 
 // Start
 init();
+
+// --- Chart Tooltip ---
+const chartTooltip = document.getElementById('chart-tooltip');
+const chartTitle = document.getElementById('chart-tooltip-title');
+const chartContainer = document.getElementById('chart-container');
+
+function showChartTooltip(e, sequence) {
+    let times = [];
+    if (sequence.length === 1 && statsTracker.data.letters[sequence]) times = statsTracker.data.letters[sequence].times;
+    else if (sequence.length === 2 && statsTracker.data.bigrams[sequence]) times = statsTracker.data.bigrams[sequence].times;
+    else if (sequence.length === 3 && statsTracker.data.trigrams[sequence]) times = statsTracker.data.trigrams[sequence].times;
+    else if (sequence.length === 4 && statsTracker.data.quadgrams[sequence]) times = statsTracker.data.quadgrams[sequence].times;
+
+    if (!times || times.length === 0) return;
+
+    const displaySeq = sequence === ' ' ? 'Space' : sequence;
+    chartTitle.textContent = `Speed History: "${displaySeq}"`;
+    renderChart(times);
+
+    chartTooltip.classList.add('visible');
+    moveChartTooltip(e);
+}
+
+function moveChartTooltip(e) {
+    let x = e.clientX + 15;
+    let y = e.clientY + 15;
+    
+    // Use requestAnimationFrame or setTimeout to ensure dimensions are computed before positioning
+    const tooltipRect = chartTooltip.getBoundingClientRect();
+    if (x + tooltipRect.width > window.innerWidth) {
+        x = e.clientX - tooltipRect.width - 15;
+    }
+    if (y + tooltipRect.height > window.innerHeight) {
+        y = e.clientY - tooltipRect.height - 15;
+    }
+
+    chartTooltip.style.left = `${x}px`;
+    chartTooltip.style.top = `${y}px`;
+}
+
+function hideChartTooltip() {
+    chartTooltip.classList.remove('visible');
+}
+
+function renderChart(times) {
+    const smoothing = parseInt(smoothingInput.value, 10) || 1;
+    
+    // Calculate simple moving average
+    const smoothedData = [];
+    for (let i = 0; i < times.length; i++) {
+        let sum = 0;
+        let count = 0;
+        for (let j = Math.max(0, i - smoothing + 1); j <= i; j++) {
+            sum += times[j];
+            count++;
+        }
+        smoothedData.push(sum / count);
+    }
+
+    if (smoothedData.length < 2) {
+        chartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:40px;">Not enough data</div>';
+        return;
+    }
+
+    const maxVal = Math.max(...smoothedData);
+    const minVal = Math.min(...smoothedData);
+    const range = maxVal - minVal;
+    const padding = range === 0 ? maxVal * 0.1 : range * 0.1;
+    
+    // Since lower time is better (faster), we invert the Y-axis so faster = higher on graph
+    // Wait, usually lower time = lower bar, but if we want to show speed, maybe speed = 1/time?
+    // Let's stick to literal time: lower value = lower down, higher value = higher up.
+    // Or we can invert it so going UP means improving (faster).
+    // Let's use literal time: y=0 is highest time (top of chart), y=height is lowest time (bottom of chart). Wait, if yMax is at bottom, then lower time is lower visually. Let's make it standard: higher time goes higher on the Y axis.
+    const yMin = Math.max(0, minVal - padding);
+    const yMax = maxVal + padding;
+
+    const width = 250;
+    const height = 120;
+    const paddingLeft = 45;
+    const chartWidth = width - paddingLeft;
+
+    const points = smoothedData.map((val, index) => {
+        const xRatio = smoothedData.length > 1 ? index / (smoothedData.length - 1) : 0;
+        const x = paddingLeft + xRatio * chartWidth;
+        const y = height - ((val - yMin) / (yMax - yMin)) * height;
+        return `${x},${y}`;
+    }).join(' ');
+
+    const svg = `
+        <svg class="chart-svg" viewBox="0 0 ${width} ${height}">
+            <text x="0" y="12" class="chart-label">${Math.round(maxVal)}ms</text>
+            <text x="0" y="${height - 2}" class="chart-label">${Math.round(minVal)}ms</text>
+            <line x1="${paddingLeft - 5}" y1="0" x2="${paddingLeft - 5}" y2="${height}" class="chart-axis" />
+            <polyline class="chart-line" points="${points}" />
+        </svg>
+    `;
+
+    chartContainer.innerHTML = svg;
+}

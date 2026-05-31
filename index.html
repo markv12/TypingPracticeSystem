@@ -50,6 +50,14 @@
                         <button id="min-seen-inc" class="num-btn">+</button>
                     </div>
                 </div>
+                <div class="filter-control">
+                    <label for="filter-smoothing">Chart Smoothing:</label>
+                    <div class="number-input-wrapper">
+                        <button id="smoothing-dec" class="num-btn">-</button>
+                        <input type="number" id="filter-smoothing" value="3" min="1" class="deco-input no-spin">
+                        <button id="smoothing-inc" class="num-btn">+</button>
+                    </div>
+                </div>
             </div>
 
             <h3 class="section-title">Slowest Typing</h3>
@@ -132,6 +140,11 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <div id="chart-tooltip" class="chart-tooltip">
+        <h4 id="chart-tooltip-title">Sequence</h4>
+        <div class="chart-container" id="chart-container"></div>
     </div>
 
     <script src="words.js"></script>
