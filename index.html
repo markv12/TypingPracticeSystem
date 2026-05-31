@@ -43,11 +43,7 @@
                 <input type="file" id="file-import" accept=".json" style="display: none;">
                 <button id="btn-sync" class="deco-btn outline" style="display: none;">Sync to File</button>
                 <div class="filter-control">
-                    <label for="filter-ignore-space" class="checkbox-label">
-                        <input type="checkbox" id="filter-ignore-space" class="deco-checkbox">
-                        Ignore Spaces
-                    </label>
-                    <label for="filter-min-seen" style="margin-left: 0.5rem;">Min Occurrences:</label>
+                    <label for="filter-min-seen">Min Occurrences:</label>
                     <div class="number-input-wrapper">
                         <button id="min-seen-dec" class="num-btn">-</button>
                         <input type="number" id="filter-min-seen" value="5" min="1" class="deco-input no-spin">
@@ -85,6 +81,15 @@
                     </div>
                     <ul id="list-worst-trigrams" class="stat-list"></ul>
                 </div>
+                <div class="stat-card">
+                    <h4>Quadgrams</h4>
+                    <div class="stat-table-header">
+                        <span>Quadgram</span>
+                        <span>Avg Time</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-worst-quadgrams" class="stat-list"></ul>
+                </div>
             </div>
 
             <h3 class="section-title">Most Mistakes</h3>
@@ -115,6 +120,15 @@
                         <span>Occurrences</span>
                     </div>
                     <ul id="list-mistakes-trigrams" class="stat-list"></ul>
+                </div>
+                <div class="stat-card">
+                    <h4>Quadgrams</h4>
+                    <div class="stat-table-header">
+                        <span>Quadgram</span>
+                        <span>Mistakes</span>
+                        <span>Occurrences</span>
+                    </div>
+                    <ul id="list-mistakes-quadgrams" class="stat-list"></ul>
                 </div>
             </div>
         </main>

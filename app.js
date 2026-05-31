@@ -14,6 +14,7 @@ let hadMistake = []; // boolean array tracking if a mistake was made at index
 let isRetyped = []; // boolean array tracking if a character was backspaced over
 let isCleanTiming = []; // boolean array tracking if the keystroke was clean (no mistake, no long pause)
 let invalidNextTiming = false; // flag to skip timing if we just backspaced
+let keystrokeTimes = []; // absolute timestamps of correct keystrokes
 
 let syncFileHandle = null;
 
@@ -74,7 +75,6 @@ const btnStats = document.getElementById('nav-stats');
 const viewPractice = document.getElementById('view-practice');
 const viewStats = document.getElementById('view-stats');
 const minSeenInput = document.getElementById('filter-min-seen');
-const ignoreSpaceInput = document.getElementById('filter-ignore-space');
 
 function init() {
     setupNavigation();
@@ -89,15 +89,17 @@ function getPracticeWords(count) {
     const minSamples = parseInt(minSeenInput.value, 10) || 1;
     
     const worstSequences = [
-        ...statsTracker.getWorst('letters', 5, minSamples, true),
-        ...statsTracker.getWorst('bigrams', 5, minSamples, true),
-        ...statsTracker.getWorst('trigrams', 5, minSamples, true)
+        ...statsTracker.getWorst('letters', 5, minSamples),
+        ...statsTracker.getWorst('bigrams', 5, minSamples),
+        ...statsTracker.getWorst('trigrams', 5, minSamples),
+        ...statsTracker.getWorst('quadgrams', 5, minSamples)
     ].map(s => s.sequence);
 
     const mistakeSequences = [
-        ...statsTracker.getMostMistakes('letters', 5, minSamples, true),
-        ...statsTracker.getMostMistakes('bigrams', 5, minSamples, true),
-        ...statsTracker.getMostMistakes('trigrams', 5, minSamples, true)
+        ...statsTracker.getMostMistakes('letters', 5, minSamples),
+        ...statsTracker.getMostMistakes('bigrams', 5, minSamples),
+        ...statsTracker.getMostMistakes('trigrams', 5, minSamples),
+        ...statsTracker.getMostMistakes('quadgrams', 5, minSamples)
     ].map(s => s.sequence);
 
     const words = [];
@@ -155,6 +157,7 @@ function startNewRun() {
     isRetyped = new Array(targetText.length).fill(false);
     isCleanTiming = new Array(targetText.length).fill(false);
     invalidNextTiming = false;
+    keystrokeTimes = new Array(targetText.length).fill(null);
     
     renderWords();
 }
@@ -258,14 +261,26 @@ function handleKeyDown(e) {
         if (extraChars.length === 0 && currentIndex < targetText.length) {
             const timeDiff = lastKeystrokeTime ? (now - lastKeystrokeTime) : 0;
             if (timeDiff <= 1500) {
-                statsTracker.recordMistake(expectedChar);
+                if (expectedChar !== ' ') {
+                    statsTracker.recordMistake(expectedChar);
+                }
                 if (currentIndex >= 1) {
                     const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
-                    statsTracker.recordMistake(bigram);
+                    if (!bigram.includes(' ')) {
+                        statsTracker.recordMistake(bigram);
+                    }
                 }
                 if (currentIndex >= 2 && isCleanTiming[currentIndex - 1]) {
                     const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
-                    statsTracker.recordMistake(trigram);
+                    if (!trigram.includes(' ')) {
+                        statsTracker.recordMistake(trigram);
+                    }
+                }
+                if (currentIndex >= 3 && isCleanTiming[currentIndex - 1] && isCleanTiming[currentIndex - 2]) {
+                    const quadgram = targetText.substring(currentIndex - 3, currentIndex + 1);
+                    if (!quadgram.includes(' ')) {
+                        statsTracker.recordMistake(quadgram);
+                    }
                 }
             }
             hadMistake[currentIndex] = true;
@@ -287,6 +302,8 @@ function handleKeyDown(e) {
         
     } else if (e.key === expectedChar) {
         // Correct character typed
+        keystrokeTimes[currentIndex] = now;
+        
         if (currentIndex === 0) {
             runStartTime = now;
             lastKeystrokeTime = now;
@@ -300,19 +317,36 @@ function handleKeyDown(e) {
             if (invalidNextTiming) isClean = false;
 
             if (isClean) {
-                // Record Letter
-                statsTracker.recordTiming(expectedChar, timeDiff);
-                
-                // Record Bigram
-                if (currentIndex >= 1) {
-                    const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
-                    statsTracker.recordTiming(bigram, timeDiff);
+                // Record Letter (1 transition)
+                if (expectedChar !== ' ') {
+                    statsTracker.recordTiming(expectedChar, timeDiff);
                 }
                 
-                // Record Trigram
+                // Record Bigram (1 transition)
+                if (currentIndex >= 1) {
+                    const bigram = targetText.substring(currentIndex - 1, currentIndex + 1);
+                    if (!bigram.includes(' ')) {
+                        const totalTime = keystrokeTimes[currentIndex] - keystrokeTimes[currentIndex - 1];
+                        statsTracker.recordTiming(bigram, totalTime);
+                    }
+                }
+                
+                // Record Trigram (2 transitions)
                 if (currentIndex >= 2 && isCleanTiming[currentIndex - 1]) {
                     const trigram = targetText.substring(currentIndex - 2, currentIndex + 1);
-                    statsTracker.recordTiming(trigram, timeDiff);
+                    if (!trigram.includes(' ')) {
+                        const totalTime = keystrokeTimes[currentIndex] - keystrokeTimes[currentIndex - 2];
+                        statsTracker.recordTiming(trigram, totalTime);
+                    }
+                }
+                
+                // Record Quadgram (3 transitions)
+                if (currentIndex >= 3 && isCleanTiming[currentIndex - 1] && isCleanTiming[currentIndex - 2]) {
+                    const quadgram = targetText.substring(currentIndex - 3, currentIndex + 1);
+                    if (!quadgram.includes(' ')) {
+                        const totalTime = keystrokeTimes[currentIndex] - keystrokeTimes[currentIndex - 3];
+                        statsTracker.recordTiming(quadgram, totalTime);
+                    }
                 }
                 
                 isCleanTiming[currentIndex] = true;
@@ -383,10 +417,6 @@ function setupStatsControls() {
     document.getElementById('min-seen-inc').addEventListener('click', () => {
         let val = parseInt(minSeenInput.value, 10);
         minSeenInput.value = val + 1;
-        if (viewStats.classList.contains('active-view')) renderStats();
-    });
-
-    ignoreSpaceInput.addEventListener('change', () => {
         if (viewStats.classList.contains('active-view')) renderStats();
     });
 
@@ -492,17 +522,18 @@ function setupStatsControls() {
 
 function renderStats() {
     const minSamples = parseInt(minSeenInput.value, 10) || 1;
-    const ignoreSpaces = ignoreSpaceInput.checked;
     
     // Slowest
-    populateStatList('list-worst-letters', statsTracker.getWorst('letters', 20, minSamples, ignoreSpaces), 'time');
-    populateStatList('list-worst-bigrams', statsTracker.getWorst('bigrams', 20, minSamples, ignoreSpaces), 'time');
-    populateStatList('list-worst-trigrams', statsTracker.getWorst('trigrams', 20, minSamples, ignoreSpaces), 'time');
+    populateStatList('list-worst-letters', statsTracker.getWorst('letters', 20, minSamples), 'time');
+    populateStatList('list-worst-bigrams', statsTracker.getWorst('bigrams', 20, minSamples), 'time');
+    populateStatList('list-worst-trigrams', statsTracker.getWorst('trigrams', 20, minSamples), 'time');
+    populateStatList('list-worst-quadgrams', statsTracker.getWorst('quadgrams', 20, minSamples), 'time');
 
     // Most Mistakes
-    populateStatList('list-mistakes-letters', statsTracker.getMostMistakes('letters', 20, minSamples, ignoreSpaces), 'mistakes');
-    populateStatList('list-mistakes-bigrams', statsTracker.getMostMistakes('bigrams', 20, minSamples, ignoreSpaces), 'mistakes');
-    populateStatList('list-mistakes-trigrams', statsTracker.getMostMistakes('trigrams', 20, minSamples, ignoreSpaces), 'mistakes');
+    populateStatList('list-mistakes-letters', statsTracker.getMostMistakes('letters', 20, minSamples), 'mistakes');
+    populateStatList('list-mistakes-bigrams', statsTracker.getMostMistakes('bigrams', 20, minSamples), 'mistakes');
+    populateStatList('list-mistakes-trigrams', statsTracker.getMostMistakes('trigrams', 20, minSamples), 'mistakes');
+    populateStatList('list-mistakes-quadgrams', statsTracker.getMostMistakes('quadgrams', 20, minSamples), 'mistakes');
 }
 
 function populateStatList(elementId, items, primaryStat) {

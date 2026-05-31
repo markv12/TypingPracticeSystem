@@ -3,7 +3,8 @@ class StatsTracker {
         this.data = {
             letters: {}, // { "a": { times: [] } }
             bigrams: {},
-            trigrams: {}
+            trigrams: {},
+            quadgrams: {}
         };
     }
 
@@ -18,6 +19,7 @@ class StatsTracker {
         if (sequence.length === 1) targetDict = this.data.letters;
         else if (sequence.length === 2) targetDict = this.data.bigrams;
         else if (sequence.length === 3) targetDict = this.data.trigrams;
+        else if (sequence.length === 4) targetDict = this.data.quadgrams;
         else return;
 
         this._ensureExists(targetDict, sequence);
@@ -29,6 +31,7 @@ class StatsTracker {
         if (sequence.length === 1) targetDict = this.data.letters;
         else if (sequence.length === 2) targetDict = this.data.bigrams;
         else if (sequence.length === 3) targetDict = this.data.trigrams;
+        else if (sequence.length === 4) targetDict = this.data.quadgrams;
         else return;
         
         this._ensureExists(targetDict, sequence);
@@ -50,7 +53,7 @@ class StatsTracker {
     importData(jsonString) {
         try {
             const parsed = JSON.parse(jsonString);
-            if (parsed.letters && parsed.bigrams && parsed.trigrams) {
+            if (parsed.letters && parsed.bigrams && parsed.trigrams && parsed.quadgrams) {
                 this.data = parsed;
                 return true;
             }
@@ -61,7 +64,7 @@ class StatsTracker {
         }
     }
 
-    getWorst(type, limit = 10, minSamples = 5, ignoreSpaces = false) {
+    getWorst(type, limit = 10, minSamples = 5) {
         const dict = this.data[type];
         if (!dict) return [];
 
@@ -80,7 +83,6 @@ class StatsTracker {
                 mistakes: totalMistakes
             };
         }).filter(item => {
-            if (ignoreSpaces && item.sequence.includes(' ')) return false;
             return (item.samples + item.mistakes) >= minSamples;
         });
 
@@ -89,7 +91,7 @@ class StatsTracker {
         return stats.slice(0, limit);
     }
 
-    getMostMistakes(type, limit = 10, minSamples = 5, ignoreSpaces = false) {
+    getMostMistakes(type, limit = 10, minSamples = 5) {
         const dict = this.data[type];
         if (!dict) return [];
 
@@ -111,7 +113,6 @@ class StatsTracker {
                 mistakeRatio: mistakeRatio
             };
         }).filter(item => {
-            if (ignoreSpaces && item.sequence.includes(' ')) return false;
             return (item.samples + item.mistakes) >= minSamples;
         });
 
