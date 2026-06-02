@@ -76,7 +76,20 @@ const viewPractice = document.getElementById('view-practice');
 const viewStats = document.getElementById('view-stats');
 const minSeenInput = document.getElementById('filter-min-seen');
 const smoothingInput = document.getElementById('filter-smoothing');
-const progressWindowInput = document.getElementById('filter-progress-window');
+
+
+function formatSpeed(ms, sequenceLength) {
+    if (!ms || ms <= 0) return '--';
+    const unitEl = document.querySelector('input[name="display-unit"]:checked');
+    const unit = unitEl ? unitEl.value : 'ms';
+    if (unit === 'ms') {
+        return `${Math.round(ms)}ms`;
+    } else {
+        const transitions = sequenceLength > 1 ? sequenceLength - 1 : 1;
+        const wpm = (12000 * transitions) / ms;
+        return `${Math.round(wpm)} WPM`;
+    }
+}
 
 function init() {
     setupNavigation();
@@ -215,6 +228,9 @@ function finishRun() {
     const wpm = (targetText.length / 5) / timeInMinutes;
     
     prevWpmEl.textContent = Math.round(wpm);
+    
+    // Save run WPM
+    statsTracker.recordRun(wpm);
     
     // Auto-sync
     syncDataToFile();
@@ -426,35 +442,28 @@ function setupStatsControls() {
         let val = parseInt(smoothingInput.value, 10);
         if (val > 1) {
             smoothingInput.value = val - 1;
+            if (viewStats.classList.contains('active-view')) renderStats();
         }
     });
 
     document.getElementById('smoothing-inc').addEventListener('click', () => {
         let val = parseInt(smoothingInput.value, 10);
         smoothingInput.value = val + 1;
-    });
-
-    document.getElementById('progress-window-dec').addEventListener('click', () => {
-        let val = parseInt(progressWindowInput.value, 10);
-        if (val > 5) {
-            progressWindowInput.value = val - 1;
-            if (viewStats.classList.contains('active-view')) renderStats();
-        }
-    });
-
-    document.getElementById('progress-window-inc').addEventListener('click', () => {
-        let val = parseInt(progressWindowInput.value, 10);
-        if (val < 30) {
-            progressWindowInput.value = val + 1;
-            if (viewStats.classList.contains('active-view')) renderStats();
-        }
-    });
-
-    progressWindowInput.addEventListener('change', () => {
-        let val = parseInt(progressWindowInput.value, 10);
-        if (isNaN(val) || val < 5) progressWindowInput.value = 5;
-        if (val > 30) progressWindowInput.value = 30;
         if (viewStats.classList.contains('active-view')) renderStats();
+    });
+
+    smoothingInput.addEventListener('change', () => {
+        let val = parseInt(smoothingInput.value, 10);
+        if (isNaN(val) || val < 1) smoothingInput.value = 1;
+        if (viewStats.classList.contains('active-view')) renderStats();
+    });
+
+
+
+    document.querySelectorAll('input[name="display-unit"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (viewStats.classList.contains('active-view')) renderStats();
+        });
     });
 
     document.getElementById('file-import').addEventListener('change', (e) => {
@@ -560,6 +569,16 @@ function setupStatsControls() {
 function renderStats() {
     const minSamples = parseInt(minSeenInput.value, 10) || 1;
     
+    // Update table headers dynamically for ms vs WPM
+    const unitEl = document.querySelector('input[name="display-unit"]:checked');
+    const unit = unitEl ? unitEl.value : 'ms';
+    const headerText = unit === 'ms' ? 'Avg Time' : 'Avg WPM';
+    document.querySelectorAll('.stat-table-header span').forEach(span => {
+        if (span.textContent === 'Avg Time' || span.textContent === 'Avg WPM') {
+            span.textContent = headerText;
+        }
+    });
+    
     // Overall Progress
     renderOverallProgressChart();
     
@@ -602,7 +621,7 @@ function populateStatList(elementId, items, primaryStat) {
         const occurrences = item.samples + item.mistakes;
 
         if (primaryStat === 'time') {
-            col2Span.textContent = item.avgTime > 0 ? `${Math.round(item.avgTime)}ms` : '--';
+            col2Span.textContent = formatSpeed(item.avgTime, item.sequence.length);
             col3Span.textContent = occurrences;
             col3Span.style.color = "var(--text-muted)";
         } else {
@@ -648,7 +667,7 @@ function showChartTooltip(e, sequence) {
 
     const displaySeq = sequence === ' ' ? 'Space' : sequence;
     chartTitle.textContent = `Speed History: "${displaySeq}"`;
-    renderChart(times);
+    renderChart(times, sequence.length);
 
     chartTooltip.classList.add('visible');
     moveChartTooltip(e);
@@ -675,8 +694,10 @@ function hideChartTooltip() {
     chartTooltip.classList.remove('visible');
 }
 
-function renderChart(times) {
+function renderChart(times, sequenceLength) {
     const smoothing = parseInt(smoothingInput.value, 10) || 1;
+    const unitEl = document.querySelector('input[name="display-unit"]:checked');
+    const unit = unitEl ? unitEl.value : 'ms';
     
     // Calculate simple moving average
     const smoothedData = [];
@@ -690,40 +711,53 @@ function renderChart(times) {
         smoothedData.push(sum / count);
     }
 
-    if (smoothedData.length < 2) {
+    // Determine startup transient size to ignore (half of window size)
+    let xIgnore = Math.floor(smoothing / 2);
+    if (smoothedData.length - xIgnore < 2) {
+        xIgnore = Math.max(0, smoothedData.length - 2);
+    }
+    
+    const plotData = smoothedData.slice(xIgnore);
+
+    if (plotData.length < 2) {
         chartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:40px;">Not enough data</div>';
         return;
     }
 
-    const maxVal = Math.max(...smoothedData);
-    const minVal = Math.min(...smoothedData);
+    // Transform data to selected unit
+    const displayData = plotData.map(val => {
+        if (unit === 'wpm') {
+            const transitions = sequenceLength > 1 ? sequenceLength - 1 : 1;
+            return (12000 * transitions) / val;
+        }
+        return val;
+    });
+
+    const maxVal = Math.max(...displayData);
+    const minVal = Math.min(...displayData);
     const range = maxVal - minVal;
     const padding = range === 0 ? maxVal * 0.1 : range * 0.1;
     
-    // Since lower time is better (faster), we invert the Y-axis so faster = higher on graph
-    // Wait, usually lower time = lower bar, but if we want to show speed, maybe speed = 1/time?
-    // Let's stick to literal time: lower value = lower down, higher value = higher up.
-    // Or we can invert it so going UP means improving (faster).
-    // Let's use literal time: y=0 is highest time (top of chart), y=height is lowest time (bottom of chart). Wait, if yMax is at bottom, then lower time is lower visually. Let's make it standard: higher time goes higher on the Y axis.
     const yMin = Math.max(0, minVal - padding);
     const yMax = maxVal + padding;
 
     const width = 250;
     const height = 120;
-    const paddingLeft = 45;
+    const paddingLeft = 55; // Slightly wider to fit labels like "120 WPM"
     const chartWidth = width - paddingLeft;
 
-    const points = smoothedData.map((val, index) => {
-        const xRatio = smoothedData.length > 1 ? index / (smoothedData.length - 1) : 0;
+    const points = displayData.map((val, index) => {
+        const xRatio = displayData.length > 1 ? index / (displayData.length - 1) : 0;
         const x = paddingLeft + xRatio * chartWidth;
-        const y = height - ((val - yMin) / (yMax - yMin)) * height;
+        const y = height - ((val - yMin) / ((yMax - yMin) || 1)) * height;
         return `${x},${y}`;
     }).join(' ');
 
+    const unitLabel = unit === 'ms' ? 'ms' : 'WPM';
     const svg = `
         <svg class="chart-svg" viewBox="0 0 ${width} ${height}">
-            <text x="0" y="12" class="chart-label">${Math.round(maxVal)}ms</text>
-            <text x="0" y="${height - 2}" class="chart-label">${Math.round(minVal)}ms</text>
+            <text x="0" y="12" class="chart-label">${Math.round(maxVal)} ${unitLabel}</text>
+            <text x="0" y="${height - 2}" class="chart-label">${Math.round(minVal)} ${unitLabel}</text>
             <line x1="${paddingLeft - 5}" y1="0" x2="${paddingLeft - 5}" y2="${height}" class="chart-axis" />
             <polyline class="chart-line" points="${points}" />
         </svg>
@@ -733,98 +767,84 @@ function renderChart(times) {
 }
 
 function renderOverallProgressChart() {
-    const progressWindow = parseInt(progressWindowInput.value, 10) || 10;
     const progressChartContainer = document.getElementById('progress-chart-container');
     const progressImprovementEl = document.getElementById('progress-improvement');
+    const unitEl = document.querySelector('input[name="display-unit"]:checked');
+    const unit = unitEl ? unitEl.value : 'ms';
     
     if (!progressChartContainer || !progressImprovementEl) return;
 
-    // Calculate total timings to check if we have enough data
-    let totalTimings = 0;
-    if (statsTracker.data && statsTracker.data.letters) {
-        for (const char in statsTracker.data.letters) {
-            if (statsTracker.data.letters[char].times) {
-                totalTimings += statsTracker.data.letters[char].times.length;
-            }
-        }
-    }
+    const rawRuns = (statsTracker.data && statsTracker.data.runs) ? statsTracker.data.runs : [];
     
-    if (totalTimings < 20) {
-        progressChartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:80px; font-family: var(--font-body);">Not enough data yet. Keep practicing to see your progress chart!</div>';
+    if (rawRuns.length < 2) {
+        progressChartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:80px; font-family: var(--font-body);">Complete at least 2 test runs to see your WPM progress chart!</div>';
         progressImprovementEl.textContent = '--';
         progressImprovementEl.style.color = 'var(--text-muted)';
         return;
     }
     
-    // Sliding window size in percent (e.g. 10)
-    const W = progressWindow;
-    const steps = 100;
-    const pools = Array.from({ length: steps + 1 }, () => []);
-    
-    for (const char in statsTracker.data.letters) {
-        const times = statsTracker.data.letters[char].times;
-        const len = times.length;
-        if (len === 0) continue;
-        for (let i = 0; i < len; i++) {
-            const p = len > 1 ? (i / (len - 1)) * 100 : 50;
-            const minK = Math.max(0, Math.ceil(p - W / 2));
-            const maxK = Math.min(steps, Math.floor(p + W / 2));
-            for (let k = minK; k <= maxK; k++) {
-                pools[k].push(times[i]);
-            }
+    // Convert runs data to chosen unit
+    const displayData = rawRuns.map(wpm => {
+        if (unit === 'ms') {
+            return wpm > 0 ? 12000 / wpm : 0;
         }
-    }
+        return wpm;
+    });
     
-    const averages = [];
-    const validPoints = []; // List of { k, val }
-    
-    for (let k = 0; k <= steps; k++) {
-        const pool = pools[k];
-        if (pool.length > 0) {
-            const avg = pool.reduce((sum, val) => sum + val, 0) / pool.length;
-            averages[k] = avg;
-            validPoints.push({ k, val: avg });
-        } else {
-            averages[k] = null;
+    // Apply moving average smoothing
+    const smoothing = parseInt(smoothingInput.value, 10) || 1;
+    const smoothedData = [];
+    for (let i = 0; i < displayData.length; i++) {
+        let sum = 0;
+        let count = 0;
+        for (let j = Math.max(0, i - smoothing + 1); j <= i; j++) {
+            sum += displayData[j];
+            count++;
         }
+        smoothedData.push(sum / count);
     }
     
-    if (validPoints.length < 2) {
-        progressChartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:80px; font-family: var(--font-body);">Not enough overlapping data across your history.</div>';
-        progressImprovementEl.textContent = '--';
-        progressImprovementEl.style.color = 'var(--text-muted)';
-        return;
-    }
-    
-    const validValues = validPoints.map(p => p.val);
-    const maxVal = Math.max(...validValues);
-    const minVal = Math.min(...validValues);
+    const maxVal = Math.max(...smoothedData);
+    const minVal = Math.min(...smoothedData);
     const range = maxVal - minVal;
     const yPadding = range === 0 ? maxVal * 0.1 : range * 0.1;
     const yMin = Math.max(0, minVal - yPadding);
     const yMax = maxVal + yPadding;
     
-    // Calculate change from start of history to end of history
-    const startVal = validPoints[0].val;
-    const endVal = validPoints[validPoints.length - 1].val;
+    // Calculate overall change
+    const startVal = smoothedData[0];
+    const endVal = smoothedData[smoothedData.length - 1];
     const change = endVal - startVal;
-    const pctChange = (change / startVal) * 100;
+    const pctChange = startVal > 0 ? (change / startVal) * 100 : 0;
     
-    if (change < 0) {
-        progressImprovementEl.textContent = `-${Math.abs(Math.round(change))}ms (-${Math.abs(Math.round(pctChange))}%)`;
-        progressImprovementEl.style.color = '#4CAF50'; // faster
-    } else if (change > 0) {
-        progressImprovementEl.textContent = `+${Math.abs(Math.round(change))}ms (+${Math.abs(Math.round(pctChange))}%)`;
-        progressImprovementEl.style.color = 'var(--text-main)'; // slower
+    const unitStr = unit === 'ms' ? 'ms' : ' WPM';
+    let isFaster = false;
+    if (unit === 'ms') {
+        isFaster = change < 0; // lower ms is faster
     } else {
-        progressImprovementEl.textContent = '0ms (0%)';
+        isFaster = change > 0; // higher WPM is faster
+    }
+    
+    const absChange = Math.round(Math.abs(change));
+    const absPct = Math.round(Math.abs(pctChange));
+    const sign = change > 0 ? '+' : change < 0 ? '-' : '';
+    const pctSign = pctChange > 0 ? '+' : pctChange < 0 ? '-' : '';
+    
+    if (isFaster) {
+        progressImprovementEl.textContent = `${sign}${absChange}${unitStr} (${pctSign}${absPct}%)`;
+        progressImprovementEl.style.color = '#4CAF50';
+    } else if (change !== 0) {
+        progressImprovementEl.textContent = `${sign}${absChange}${unitStr} (${pctSign}${absPct}%)`;
+        progressImprovementEl.style.color = 'var(--text-main)';
+    } else {
+        progressImprovementEl.textContent = `0${unitStr} (0%)`;
         progressImprovementEl.style.color = 'var(--text-muted)';
     }
     
     // SVG Dimensions
     const width = 1000;
     const height = 200;
-    const paddingLeft = 60;
+    const paddingLeft = 70;
     const paddingRight = 20;
     const paddingTop = 20;
     const paddingBottom = 30;
@@ -834,22 +854,20 @@ function renderOverallProgressChart() {
     
     const coords = [];
     const pointsMap = {};
-    
     const denom = (yMax - yMin) || 1;
+    const N = smoothedData.length;
     
-    validPoints.forEach(pt => {
-        const x = paddingLeft + (pt.k / steps) * chartWidth;
-        const y = paddingTop + chartHeight * (1 - (pt.val - yMin) / denom);
+    for (let i = 0; i < N; i++) {
+        const x = paddingLeft + (i / (N - 1)) * chartWidth;
+        const y = paddingTop + chartHeight * (1 - (smoothedData[i] - yMin) / denom);
         coords.push(`${x},${y}`);
-        pointsMap[pt.k] = { x, y, val: pt.val };
-    });
+        pointsMap[i] = { x, y, val: smoothedData[i], rawVal: displayData[i] };
+    }
     
     const lineD = 'M ' + coords.join(' L ');
-    const firstX = pointsMap[validPoints[0].k].x;
-    const lastX = pointsMap[validPoints[validPoints.length - 1].k].x;
-    const areaD = `${lineD} L ${lastX},${height - paddingBottom} L ${firstX},${height - paddingBottom} Z`;
+    const areaD = `${lineD} L ${paddingLeft + chartWidth},${height - paddingBottom} L ${paddingLeft},${height - paddingBottom} Z`;
     
-    // Grid Lines SVG (horizontal guides)
+    // Grid Lines SVG
     let gridLinesSvg = '';
     const numGridLines = 3;
     for (let i = 1; i <= numGridLines; i++) {
@@ -858,28 +876,27 @@ function renderOverallProgressChart() {
         const val = yMax - ratio * (yMax - yMin);
         gridLinesSvg += `
             <line x1="${paddingLeft}" y1="${y}" x2="${width - paddingRight}" y2="${y}" stroke="rgba(255, 255, 255, 0.05)" stroke-dasharray="4 4" />
-            <text x="${paddingLeft - 8}" y="${y + 4}" fill="var(--text-muted)" font-size="10" font-family="var(--font-body)" text-anchor="end">${Math.round(val)}ms</text>
+            <text x="${paddingLeft - 8}" y="${y + 4}" fill="var(--text-muted)" font-size="10" font-family="var(--font-body)" text-anchor="end">${Math.round(val)}${unitStr}</text>
         `;
     }
     
-    // X-axis guide ticks (Start, 25%, 50%, 75%, Now)
+    // X-axis Guide Ticks (Test 1, Test N/2, Test N)
     let xTicksSvg = '';
-    const xTicks = [
-        { k: 0, label: 'Start' },
-        { k: 25, label: '25%' },
-        { k: 50, label: '50%' },
-        { k: 75, label: '75%' },
-        { k: 100, label: 'Now' }
-    ];
+    const tickIndices = [0];
+    if (N >= 3) {
+        tickIndices.push(Math.floor((N - 1) / 2));
+    }
+    if (N >= 2) {
+        tickIndices.push(N - 1);
+    }
     
-    xTicks.forEach(tick => {
-        if (pointsMap[tick.k] || (tick.k === 0 && validPoints[0].k <= 5) || (tick.k === 100 && validPoints[validPoints.length - 1].k >= 95)) {
-            const x = paddingLeft + (tick.k / steps) * chartWidth;
-            xTicksSvg += `
-                <line x1="${x}" y1="${height - paddingBottom}" x2="${x}" y2="${height - paddingBottom + 5}" stroke="rgba(255, 255, 255, 0.1)" />
-                <text x="${x}" y="${height - paddingBottom + 20}" fill="var(--text-muted)" font-size="11" font-family="var(--font-body)" text-anchor="middle">${tick.label}</text>
-            `;
-        }
+    tickIndices.forEach(idx => {
+        const x = paddingLeft + (idx / (N - 1)) * chartWidth;
+        const label = `Test ${idx + 1}`;
+        xTicksSvg += `
+            <line x1="${x}" y1="${height - paddingBottom}" x2="${x}" y2="${height - paddingBottom + 5}" stroke="rgba(255, 255, 255, 0.1)" />
+            <text x="${x}" y="${height - paddingBottom + 20}" fill="var(--text-muted)" font-size="11" font-family="var(--font-body)" text-anchor="middle">${label}</text>
+        `;
     });
     
     const svgHtml = `
@@ -907,10 +924,10 @@ function renderOverallProgressChart() {
             <!-- Curve Line -->
             <path d="${lineD}" fill="none" stroke="var(--primary-gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.35));" />
             
-            <!-- Hover vertical tracker line (hidden by default) -->
+            <!-- Hover vertical tracker line -->
             <line id="overall-tracker-line" x1="0" y1="${paddingTop}" x2="0" y2="${height - paddingBottom}" stroke="rgba(212, 175, 55, 0.3)" stroke-width="1.5" style="display: none;" />
             
-            <!-- Hover dot (hidden by default) -->
+            <!-- Hover dot -->
             <circle id="overall-tracker-dot" r="5" fill="var(--primary-gold)" stroke="#0d0d0d" stroke-width="1.5" style="display: none; filter: drop-shadow(0 0 4px var(--primary-gold));" />
             
             <!-- Interactive Overlay -->
@@ -920,7 +937,6 @@ function renderOverallProgressChart() {
     
     progressChartContainer.innerHTML = svgHtml;
     
-    // Grab newly rendered interactive elements
     const svg = document.getElementById('overall-progress-svg');
     const overlay = document.getElementById('overall-chart-overlay');
     const trackerLine = document.getElementById('overall-tracker-line');
@@ -931,24 +947,14 @@ function renderOverallProgressChart() {
     
     function handleHover(e) {
         const rect = svg.getBoundingClientRect();
-        // Map page mouse coordinates directly to local SVG coordinate space (0-1000)
         const xSvg = ((e.clientX - rect.left) / rect.width) * width;
         
-        let closestK = null;
-        let minDiff = Infinity;
+        let idx = Math.round(((xSvg - paddingLeft) / chartWidth) * (N - 1));
+        idx = Math.max(0, Math.min(N - 1, idx));
         
-        validPoints.forEach(pt => {
-            const diff = Math.abs(pointsMap[pt.k].x - xSvg);
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestK = pt.k;
-            }
-        });
-        
-        if (closestK !== null && pointsMap[closestK]) {
-            const pt = pointsMap[closestK];
+        if (pointsMap[idx]) {
+            const pt = pointsMap[idx];
             
-            // Render tracker guides
             trackerLine.setAttribute('x1', pt.x);
             trackerLine.setAttribute('x2', pt.x);
             trackerLine.style.display = 'block';
@@ -957,36 +963,37 @@ function renderOverallProgressChart() {
             trackerDot.setAttribute('cy', pt.y);
             trackerDot.style.display = 'block';
             
-            // Map SVG coordinates to percentage offsets for HTML positioning
             const pctX = (pt.x / width) * 100;
             const pctY = (pt.y / height) * 100;
             
             tooltip.style.left = `${pctX}%`;
             tooltip.style.top = `${pctY - 15}%`;
             
-            // Shift translation to keep tooltip within the box bounds
-            if (closestK > 80) {
+            // Avoid edge clipping translation
+            const ratio = idx / (N - 1);
+            if (ratio > 0.8) {
                 tooltip.style.transform = 'translate(-100%, -100%)';
-            } else if (closestK < 20) {
+            } else if (ratio < 0.2) {
                 tooltip.style.transform = 'translate(0, -100%)';
             } else {
                 tooltip.style.transform = 'translate(-50%, -100%)';
             }
             
             tooltip.innerHTML = `
-                <div style="font-weight: 500; color: var(--primary-gold); margin-bottom: 2px;">${closestK}% of History</div>
-                <div style="font-size: 1.1rem; font-weight: bold; color: var(--text-main);">${Math.round(pt.val)} ms</div>
+                <div style="font-weight: 500; color: var(--primary-gold); margin-bottom: 2px;">Test ${idx + 1}</div>
+                <div style="font-size: 1.1rem; font-weight: bold; color: var(--text-main);">${Math.round(pt.rawVal)}${unitStr}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1px;">(Trend: ${Math.round(pt.val)}${unitStr})</div>
             `;
             tooltip.style.display = 'block';
         }
     }
     
-    function hideHover() {
+    function handleMouseLeave() {
         trackerLine.style.display = 'none';
         trackerDot.style.display = 'none';
         tooltip.style.display = 'none';
     }
     
     overlay.addEventListener('mousemove', handleHover);
-    overlay.addEventListener('mouseleave', hideHover);
+    overlay.addEventListener('mouseleave', handleMouseLeave);
 }

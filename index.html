@@ -42,12 +42,23 @@
                 <label for="file-import" class="deco-btn outline">Import Data</label>
                 <input type="file" id="file-import" accept=".json" style="display: none;">
                 <button id="btn-sync" class="deco-btn outline" style="display: none;">Sync to File</button>
+                
                 <div class="filter-control">
-                    <label for="filter-progress-window">Progress Window (%):</label>
+                    <label for="filter-smoothing">Chart Smoothing:</label>
                     <div class="number-input-wrapper">
-                        <button id="progress-window-dec" class="num-btn">-</button>
-                        <input type="number" id="filter-progress-window" value="10" min="5" max="30" class="deco-input no-spin">
-                        <button id="progress-window-inc" class="num-btn">+</button>
+                        <button id="smoothing-dec" class="num-btn">-</button>
+                        <input type="number" id="filter-smoothing" value="25" min="1" class="deco-input no-spin">
+                        <button id="smoothing-inc" class="num-btn">+</button>
+                    </div>
+                </div>
+
+                <div class="filter-control">
+                    <label>Display Unit:</label>
+                    <div class="segmented-control">
+                        <input type="radio" id="unit-ms" name="display-unit" value="ms" checked>
+                        <label for="unit-ms" class="segment-label">ms</label>
+                        <input type="radio" id="unit-wpm" name="display-unit" value="wpm">
+                        <label for="unit-wpm" class="segment-label">WPM</label>
                     </div>
                 </div>
             </div>
@@ -56,7 +67,7 @@
                 <div class="progress-card-header">
                     <div>
                         <h3>Overall Speed Progress</h3>
-                        <p>Average letter milliseconds over your typing history</p>
+                        <p>Chronological history of your overall test speeds over time</p>
                     </div>
                     <div id="progress-stats">
                         <span id="progress-improvement">--</span>
@@ -78,14 +89,6 @@
                         <button id="min-seen-dec" class="num-btn">-</button>
                         <input type="number" id="filter-min-seen" value="5" min="1" class="deco-input no-spin">
                         <button id="min-seen-inc" class="num-btn">+</button>
-                    </div>
-                </div>
-                <div class="filter-control">
-                    <label for="filter-smoothing">Chart Smoothing (hover graphs):</label>
-                    <div class="number-input-wrapper">
-                        <button id="smoothing-dec" class="num-btn">-</button>
-                        <input type="number" id="filter-smoothing" value="3" min="1" class="deco-input no-spin">
-                        <button id="smoothing-inc" class="num-btn">+</button>
                     </div>
                 </div>
             </div>

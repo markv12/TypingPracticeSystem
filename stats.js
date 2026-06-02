@@ -4,8 +4,16 @@ class StatsTracker {
             letters: {}, // { "a": { times: [] } }
             bigrams: {},
             trigrams: {},
-            quadgrams: {}
+            quadgrams: {},
+            runs: [] // chronological list of test WPM scores
         };
+    }
+
+    recordRun(wpm) {
+        if (!this.data.runs) {
+            this.data.runs = [];
+        }
+        this.data.runs.push(Math.round(wpm));
     }
 
     _ensureExists(dict, key) {
@@ -54,6 +62,7 @@ class StatsTracker {
         try {
             const parsed = JSON.parse(jsonString);
             if (parsed.letters && parsed.bigrams && parsed.trigrams && parsed.quadgrams) {
+                if (!parsed.runs) parsed.runs = [];
                 this.data = parsed;
                 return true;
             }

@@ -624,3 +624,38 @@ nav button.active {
         gap: 0.75rem;
     }
 }
+
+/* Segmented Control Pill Toggles */
+.segmented-control {
+    display: flex;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 20px;
+    overflow: hidden;
+    padding: 2px;
+}
+
+.segmented-control input[type="radio"] {
+    display: none;
+}
+
+.segmented-control .segment-label {
+    padding: 0.3rem 1rem;
+    font-size: 0.85rem;
+    font-family: var(--font-body);
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 18px;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.segmented-control .segment-label:hover {
+    color: var(--primary-gold);
+}
+
+.segmented-control input[type="radio"]:checked + .segment-label {
+    background: var(--primary-gold);
+    color: var(--bg-color);
+    font-weight: 500;
+}
