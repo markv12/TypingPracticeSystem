@@ -43,7 +43,37 @@
                 <input type="file" id="file-import" accept=".json" style="display: none;">
                 <button id="btn-sync" class="deco-btn outline" style="display: none;">Sync to File</button>
                 <div class="filter-control">
-                    <label for="filter-min-seen">Min Occurrences:</label>
+                    <label for="filter-progress-window">Progress Window (%):</label>
+                    <div class="number-input-wrapper">
+                        <button id="progress-window-dec" class="num-btn">-</button>
+                        <input type="number" id="filter-progress-window" value="10" min="5" max="30" class="deco-input no-spin">
+                        <button id="progress-window-inc" class="num-btn">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="overall-progress-card" class="stat-card overall-progress-card">
+                <div class="progress-card-header">
+                    <div>
+                        <h3>Overall Speed Progress</h3>
+                        <p>Average letter milliseconds over your typing history</p>
+                    </div>
+                    <div id="progress-stats">
+                        <span id="progress-improvement">--</span>
+                        <div class="improvement-label">overall change</div>
+                    </div>
+                </div>
+                <div class="progress-chart-wrapper">
+                    <div class="progress-chart-container" id="progress-chart-container">
+                        <!-- Progress chart SVG will be injected here -->
+                    </div>
+                    <div id="progress-chart-tooltip" class="progress-chart-tooltip"></div>
+                </div>
+            </div>
+
+            <div class="list-controls-row">
+                <div class="filter-control">
+                    <label for="filter-min-seen">Min Occurrences (lists):</label>
                     <div class="number-input-wrapper">
                         <button id="min-seen-dec" class="num-btn">-</button>
                         <input type="number" id="filter-min-seen" value="5" min="1" class="deco-input no-spin">
@@ -51,7 +81,7 @@
                     </div>
                 </div>
                 <div class="filter-control">
-                    <label for="filter-smoothing">Chart Smoothing:</label>
+                    <label for="filter-smoothing">Chart Smoothing (hover graphs):</label>
                     <div class="number-input-wrapper">
                         <button id="smoothing-dec" class="num-btn">-</button>
                         <input type="number" id="filter-smoothing" value="3" min="1" class="deco-input no-spin">

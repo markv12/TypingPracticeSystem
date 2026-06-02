@@ -76,6 +76,7 @@ const viewPractice = document.getElementById('view-practice');
 const viewStats = document.getElementById('view-stats');
 const minSeenInput = document.getElementById('filter-min-seen');
 const smoothingInput = document.getElementById('filter-smoothing');
+const progressWindowInput = document.getElementById('filter-progress-window');
 
 function init() {
     setupNavigation();
@@ -433,6 +434,29 @@ function setupStatsControls() {
         smoothingInput.value = val + 1;
     });
 
+    document.getElementById('progress-window-dec').addEventListener('click', () => {
+        let val = parseInt(progressWindowInput.value, 10);
+        if (val > 5) {
+            progressWindowInput.value = val - 1;
+            if (viewStats.classList.contains('active-view')) renderStats();
+        }
+    });
+
+    document.getElementById('progress-window-inc').addEventListener('click', () => {
+        let val = parseInt(progressWindowInput.value, 10);
+        if (val < 30) {
+            progressWindowInput.value = val + 1;
+            if (viewStats.classList.contains('active-view')) renderStats();
+        }
+    });
+
+    progressWindowInput.addEventListener('change', () => {
+        let val = parseInt(progressWindowInput.value, 10);
+        if (isNaN(val) || val < 5) progressWindowInput.value = 5;
+        if (val > 30) progressWindowInput.value = 30;
+        if (viewStats.classList.contains('active-view')) renderStats();
+    });
+
     document.getElementById('file-import').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -535,6 +559,9 @@ function setupStatsControls() {
 
 function renderStats() {
     const minSamples = parseInt(minSeenInput.value, 10) || 1;
+    
+    // Overall Progress
+    renderOverallProgressChart();
     
     // Slowest
     populateStatList('list-worst-letters', statsTracker.getWorst('letters', 20, minSamples), 'time');
@@ -703,4 +730,263 @@ function renderChart(times) {
     `;
 
     chartContainer.innerHTML = svg;
+}
+
+function renderOverallProgressChart() {
+    const progressWindow = parseInt(progressWindowInput.value, 10) || 10;
+    const progressChartContainer = document.getElementById('progress-chart-container');
+    const progressImprovementEl = document.getElementById('progress-improvement');
+    
+    if (!progressChartContainer || !progressImprovementEl) return;
+
+    // Calculate total timings to check if we have enough data
+    let totalTimings = 0;
+    if (statsTracker.data && statsTracker.data.letters) {
+        for (const char in statsTracker.data.letters) {
+            if (statsTracker.data.letters[char].times) {
+                totalTimings += statsTracker.data.letters[char].times.length;
+            }
+        }
+    }
+    
+    if (totalTimings < 20) {
+        progressChartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:80px; font-family: var(--font-body);">Not enough data yet. Keep practicing to see your progress chart!</div>';
+        progressImprovementEl.textContent = '--';
+        progressImprovementEl.style.color = 'var(--text-muted)';
+        return;
+    }
+    
+    // Sliding window size in percent (e.g. 10)
+    const W = progressWindow;
+    const steps = 100;
+    const pools = Array.from({ length: steps + 1 }, () => []);
+    
+    for (const char in statsTracker.data.letters) {
+        const times = statsTracker.data.letters[char].times;
+        const len = times.length;
+        if (len === 0) continue;
+        for (let i = 0; i < len; i++) {
+            const p = len > 1 ? (i / (len - 1)) * 100 : 50;
+            const minK = Math.max(0, Math.ceil(p - W / 2));
+            const maxK = Math.min(steps, Math.floor(p + W / 2));
+            for (let k = minK; k <= maxK; k++) {
+                pools[k].push(times[i]);
+            }
+        }
+    }
+    
+    const averages = [];
+    const validPoints = []; // List of { k, val }
+    
+    for (let k = 0; k <= steps; k++) {
+        const pool = pools[k];
+        if (pool.length > 0) {
+            const avg = pool.reduce((sum, val) => sum + val, 0) / pool.length;
+            averages[k] = avg;
+            validPoints.push({ k, val: avg });
+        } else {
+            averages[k] = null;
+        }
+    }
+    
+    if (validPoints.length < 2) {
+        progressChartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:80px; font-family: var(--font-body);">Not enough overlapping data across your history.</div>';
+        progressImprovementEl.textContent = '--';
+        progressImprovementEl.style.color = 'var(--text-muted)';
+        return;
+    }
+    
+    const validValues = validPoints.map(p => p.val);
+    const maxVal = Math.max(...validValues);
+    const minVal = Math.min(...validValues);
+    const range = maxVal - minVal;
+    const yPadding = range === 0 ? maxVal * 0.1 : range * 0.1;
+    const yMin = Math.max(0, minVal - yPadding);
+    const yMax = maxVal + yPadding;
+    
+    // Calculate change from start of history to end of history
+    const startVal = validPoints[0].val;
+    const endVal = validPoints[validPoints.length - 1].val;
+    const change = endVal - startVal;
+    const pctChange = (change / startVal) * 100;
+    
+    if (change < 0) {
+        progressImprovementEl.textContent = `-${Math.abs(Math.round(change))}ms (-${Math.abs(Math.round(pctChange))}%)`;
+        progressImprovementEl.style.color = '#4CAF50'; // faster
+    } else if (change > 0) {
+        progressImprovementEl.textContent = `+${Math.abs(Math.round(change))}ms (+${Math.abs(Math.round(pctChange))}%)`;
+        progressImprovementEl.style.color = 'var(--text-main)'; // slower
+    } else {
+        progressImprovementEl.textContent = '0ms (0%)';
+        progressImprovementEl.style.color = 'var(--text-muted)';
+    }
+    
+    // SVG Dimensions
+    const width = 1000;
+    const height = 200;
+    const paddingLeft = 60;
+    const paddingRight = 20;
+    const paddingTop = 20;
+    const paddingBottom = 30;
+    
+    const chartWidth = width - paddingLeft - paddingRight;
+    const chartHeight = height - paddingTop - paddingBottom;
+    
+    const coords = [];
+    const pointsMap = {};
+    
+    const denom = (yMax - yMin) || 1;
+    
+    validPoints.forEach(pt => {
+        const x = paddingLeft + (pt.k / steps) * chartWidth;
+        const y = paddingTop + chartHeight * (1 - (pt.val - yMin) / denom);
+        coords.push(`${x},${y}`);
+        pointsMap[pt.k] = { x, y, val: pt.val };
+    });
+    
+    const lineD = 'M ' + coords.join(' L ');
+    const firstX = pointsMap[validPoints[0].k].x;
+    const lastX = pointsMap[validPoints[validPoints.length - 1].k].x;
+    const areaD = `${lineD} L ${lastX},${height - paddingBottom} L ${firstX},${height - paddingBottom} Z`;
+    
+    // Grid Lines SVG (horizontal guides)
+    let gridLinesSvg = '';
+    const numGridLines = 3;
+    for (let i = 1; i <= numGridLines; i++) {
+        const ratio = i / (numGridLines + 1);
+        const y = paddingTop + chartHeight * ratio;
+        const val = yMax - ratio * (yMax - yMin);
+        gridLinesSvg += `
+            <line x1="${paddingLeft}" y1="${y}" x2="${width - paddingRight}" y2="${y}" stroke="rgba(255, 255, 255, 0.05)" stroke-dasharray="4 4" />
+            <text x="${paddingLeft - 8}" y="${y + 4}" fill="var(--text-muted)" font-size="10" font-family="var(--font-body)" text-anchor="end">${Math.round(val)}ms</text>
+        `;
+    }
+    
+    // X-axis guide ticks (Start, 25%, 50%, 75%, Now)
+    let xTicksSvg = '';
+    const xTicks = [
+        { k: 0, label: 'Start' },
+        { k: 25, label: '25%' },
+        { k: 50, label: '50%' },
+        { k: 75, label: '75%' },
+        { k: 100, label: 'Now' }
+    ];
+    
+    xTicks.forEach(tick => {
+        if (pointsMap[tick.k] || (tick.k === 0 && validPoints[0].k <= 5) || (tick.k === 100 && validPoints[validPoints.length - 1].k >= 95)) {
+            const x = paddingLeft + (tick.k / steps) * chartWidth;
+            xTicksSvg += `
+                <line x1="${x}" y1="${height - paddingBottom}" x2="${x}" y2="${height - paddingBottom + 5}" stroke="rgba(255, 255, 255, 0.1)" />
+                <text x="${x}" y="${height - paddingBottom + 20}" fill="var(--text-muted)" font-size="11" font-family="var(--font-body)" text-anchor="middle">${tick.label}</text>
+            `;
+        }
+    });
+    
+    const svgHtml = `
+        <svg id="overall-progress-svg" viewBox="0 0 ${width} ${height}" style="width: 100%; height: 100%; overflow: visible;">
+            <defs>
+                <linearGradient id="overall-chart-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--primary-gold)" stop-opacity="0.2" />
+                    <stop offset="100%" stop-color="var(--primary-gold)" stop-opacity="0" />
+                </linearGradient>
+            </defs>
+            
+            <!-- Guides and Grid -->
+            ${gridLinesSvg}
+            
+            <!-- Axes -->
+            <line x1="${paddingLeft}" y1="${paddingTop}" x2="${paddingLeft}" y2="${height - paddingBottom}" stroke="rgba(255, 255, 255, 0.1)" />
+            <line x1="${paddingLeft}" y1="${height - paddingBottom}" x2="${width - paddingRight}" y2="${height - paddingBottom}" stroke="rgba(255, 255, 255, 0.1)" />
+            
+            <!-- X axis ticks -->
+            ${xTicksSvg}
+            
+            <!-- Shaded Area -->
+            <path d="${areaD}" fill="url(#overall-chart-grad)" />
+            
+            <!-- Curve Line -->
+            <path d="${lineD}" fill="none" stroke="var(--primary-gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.35));" />
+            
+            <!-- Hover vertical tracker line (hidden by default) -->
+            <line id="overall-tracker-line" x1="0" y1="${paddingTop}" x2="0" y2="${height - paddingBottom}" stroke="rgba(212, 175, 55, 0.3)" stroke-width="1.5" style="display: none;" />
+            
+            <!-- Hover dot (hidden by default) -->
+            <circle id="overall-tracker-dot" r="5" fill="var(--primary-gold)" stroke="#0d0d0d" stroke-width="1.5" style="display: none; filter: drop-shadow(0 0 4px var(--primary-gold));" />
+            
+            <!-- Interactive Overlay -->
+            <rect id="overall-chart-overlay" x="${paddingLeft}" y="${paddingTop}" width="${chartWidth}" height="${chartHeight}" fill="transparent" style="cursor: crosshair;" />
+        </svg>
+    `;
+    
+    progressChartContainer.innerHTML = svgHtml;
+    
+    // Grab newly rendered interactive elements
+    const svg = document.getElementById('overall-progress-svg');
+    const overlay = document.getElementById('overall-chart-overlay');
+    const trackerLine = document.getElementById('overall-tracker-line');
+    const trackerDot = document.getElementById('overall-tracker-dot');
+    const tooltip = document.getElementById('progress-chart-tooltip');
+    
+    if (!overlay || !svg || !trackerLine || !trackerDot || !tooltip) return;
+    
+    function handleHover(e) {
+        const rect = svg.getBoundingClientRect();
+        // Map page mouse coordinates directly to local SVG coordinate space (0-1000)
+        const xSvg = ((e.clientX - rect.left) / rect.width) * width;
+        
+        let closestK = null;
+        let minDiff = Infinity;
+        
+        validPoints.forEach(pt => {
+            const diff = Math.abs(pointsMap[pt.k].x - xSvg);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestK = pt.k;
+            }
+        });
+        
+        if (closestK !== null && pointsMap[closestK]) {
+            const pt = pointsMap[closestK];
+            
+            // Render tracker guides
+            trackerLine.setAttribute('x1', pt.x);
+            trackerLine.setAttribute('x2', pt.x);
+            trackerLine.style.display = 'block';
+            
+            trackerDot.setAttribute('cx', pt.x);
+            trackerDot.setAttribute('cy', pt.y);
+            trackerDot.style.display = 'block';
+            
+            // Map SVG coordinates to percentage offsets for HTML positioning
+            const pctX = (pt.x / width) * 100;
+            const pctY = (pt.y / height) * 100;
+            
+            tooltip.style.left = `${pctX}%`;
+            tooltip.style.top = `${pctY - 15}%`;
+            
+            // Shift translation to keep tooltip within the box bounds
+            if (closestK > 80) {
+                tooltip.style.transform = 'translate(-100%, -100%)';
+            } else if (closestK < 20) {
+                tooltip.style.transform = 'translate(0, -100%)';
+            } else {
+                tooltip.style.transform = 'translate(-50%, -100%)';
+            }
+            
+            tooltip.innerHTML = `
+                <div style="font-weight: 500; color: var(--primary-gold); margin-bottom: 2px;">${closestK}% of History</div>
+                <div style="font-size: 1.1rem; font-weight: bold; color: var(--text-main);">${Math.round(pt.val)} ms</div>
+            `;
+            tooltip.style.display = 'block';
+        }
+    }
+    
+    function hideHover() {
+        trackerLine.style.display = 'none';
+        trackerDot.style.display = 'none';
+        tooltip.style.display = 'none';
+    }
+    
+    overlay.addEventListener('mousemove', handleHover);
+    overlay.addEventListener('mouseleave', hideHover);
 }
