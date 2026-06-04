@@ -91,9 +91,40 @@ function formatSpeed(ms, sequenceLength) {
     }
 }
 
-function init() {
+async function loadSavedData() {
+    const btnSync = document.getElementById('btn-sync');
+    if (!btnSync || !('showOpenFilePicker' in window)) return;
+    
+    try {
+        const handle = await loadHandle();
+        if (handle) {
+            syncFileHandle = handle;
+            if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+                try {
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    if (text && text.trim().length > 0) {
+                        statsTracker.importData(text);
+                        if (viewStats.classList.contains('active-view')) renderStats();
+                    }
+                    btnSync.textContent = `Syncing to: ${handle.name}`;
+                    btnSync.classList.remove('outline');
+                } catch (e) {
+                    console.error("Failed to read from restored handle", e);
+                }
+            } else {
+                btnSync.textContent = `Resume Sync: ${handle.name}`;
+            }
+        }
+    } catch (e) {
+        console.error("Could not load handle from IndexedDB", e);
+    }
+}
+
+async function init() {
     setupNavigation();
     setupStatsControls();
+    await loadSavedData();
     startNewRun();
     
     // Global keyboard listener
@@ -477,6 +508,9 @@ function setupStatsControls() {
                 if (viewStats.classList.contains('active-view')) {
                     renderStats();
                 }
+                if (currentIndex === 0 && !runStartTime && extraChars.length === 0) {
+                    startNewRun();
+                }
             } else {
                 alert('Failed to import data. Invalid format.');
             }
@@ -488,31 +522,6 @@ function setupStatsControls() {
     if ('showOpenFilePicker' in window) {
         btnSync.style.display = 'inline-block';
         
-        // Try to load existing handle from IndexedDB
-        loadHandle().then(async (handle) => {
-            if (handle) {
-                syncFileHandle = handle;
-                if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') {
-                    // We have permission! Load data
-                    try {
-                        const file = await handle.getFile();
-                        const text = await file.text();
-                        if (text && text.trim().length > 0) {
-                            statsTracker.importData(text);
-                            if (viewStats.classList.contains('active-view')) renderStats();
-                        }
-                        btnSync.textContent = `Syncing to: ${handle.name}`;
-                        btnSync.classList.remove('outline');
-                    } catch (e) {
-                        console.error("Failed to read from restored handle", e);
-                    }
-                } else {
-                    // We have the handle but need the user to click to request permission
-                    btnSync.textContent = `Resume Sync: ${handle.name}`;
-                }
-            }
-        }).catch(e => console.error("Could not load handle from IndexedDB", e));
-
         btnSync.addEventListener('click', async () => {
             try {
                 // If we have a handle but lack permission, just request permission
@@ -523,6 +532,9 @@ function setupStatsControls() {
                         if (text && text.trim().length > 0) {
                             statsTracker.importData(text);
                             if (viewStats.classList.contains('active-view')) renderStats();
+                            if (currentIndex === 0 && !runStartTime && extraChars.length === 0) {
+                                startNewRun();
+                            }
                         }
                         btnSync.textContent = `Syncing to: ${syncFileHandle.name}`;
                         btnSync.classList.remove('outline');
@@ -550,6 +562,9 @@ function setupStatsControls() {
                         return;
                     }
                     if (viewStats.classList.contains('active-view')) renderStats();
+                    if (currentIndex === 0 && !runStartTime && extraChars.length === 0) {
+                        startNewRun();
+                    }
                 }
 
                 syncFileHandle = handle;
