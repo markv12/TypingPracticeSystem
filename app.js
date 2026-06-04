@@ -714,25 +714,23 @@ function renderChart(times, sequenceLength) {
     const unitEl = document.querySelector('input[name="display-unit"]:checked');
     const unit = unitEl ? unitEl.value : 'ms';
     
-    // Calculate simple moving average
+    // Calculate centered moving average
     const smoothedData = [];
+    const r = Math.floor(smoothing / 2);
     for (let i = 0; i < times.length; i++) {
         let sum = 0;
         let count = 0;
-        for (let j = Math.max(0, i - smoothing + 1); j <= i; j++) {
+        const start = Math.max(0, i - r);
+        const end = Math.min(times.length - 1, i + r);
+        for (let j = start; j <= end; j++) {
             sum += times[j];
             count++;
         }
         smoothedData.push(sum / count);
     }
 
-    // Determine startup transient size to ignore (half of window size)
-    let xIgnore = Math.floor(smoothing / 2);
-    if (smoothedData.length - xIgnore < 2) {
-        xIgnore = Math.max(0, smoothedData.length - 2);
-    }
-    
-    const plotData = smoothedData.slice(xIgnore);
+    // Centered smoothing handles boundaries gracefully, so we plot the full sequence
+    const plotData = smoothedData;
 
     if (plotData.length < 2) {
         chartContainer.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding-top:40px;">Not enough data</div>';
@@ -806,13 +804,16 @@ function renderOverallProgressChart() {
         return wpm;
     });
     
-    // Apply moving average smoothing
+    // Apply centered moving average smoothing
     const smoothing = parseInt(smoothingInput.value, 10) || 1;
     const smoothedData = [];
+    const r = Math.floor(smoothing / 2);
     for (let i = 0; i < displayData.length; i++) {
         let sum = 0;
         let count = 0;
-        for (let j = Math.max(0, i - smoothing + 1); j <= i; j++) {
+        const start = Math.max(0, i - r);
+        const end = Math.min(displayData.length - 1, i + r);
+        for (let j = start; j <= end; j++) {
             sum += displayData[j];
             count++;
         }
