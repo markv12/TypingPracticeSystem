@@ -820,8 +820,8 @@ function renderOverallProgressChart() {
         smoothedData.push(sum / count);
     }
     
-    const maxVal = Math.max(...smoothedData);
-    const minVal = Math.min(...smoothedData);
+    const maxVal = Math.max(...displayData);
+    const minVal = Math.min(...displayData);
     const range = maxVal - minVal;
     const yPadding = range === 0 ? maxVal * 0.1 : range * 0.1;
     const yMin = Math.max(0, minVal - yPadding);
@@ -859,7 +859,7 @@ function renderOverallProgressChart() {
     
     // SVG Dimensions
     const width = 1000;
-    const height = 200;
+    const height = 500;
     const paddingLeft = 70;
     const paddingRight = 20;
     const paddingTop = 20;
@@ -869,6 +869,7 @@ function renderOverallProgressChart() {
     const chartHeight = height - paddingTop - paddingBottom;
     
     const coords = [];
+    const rawCoords = [];
     const pointsMap = {};
     const denom = (yMax - yMin) || 1;
     const N = smoothedData.length;
@@ -876,12 +877,15 @@ function renderOverallProgressChart() {
     for (let i = 0; i < N; i++) {
         const x = paddingLeft + (i / (N - 1)) * chartWidth;
         const y = paddingTop + chartHeight * (1 - (smoothedData[i] - yMin) / denom);
+        const yRaw = paddingTop + chartHeight * (1 - (displayData[i] - yMin) / denom);
         coords.push(`${x},${y}`);
-        pointsMap[i] = { x, y, val: smoothedData[i], rawVal: displayData[i] };
+        rawCoords.push(`${x},${yRaw}`);
+        pointsMap[i] = { x, y, val: smoothedData[i], rawVal: displayData[i], yRaw };
     }
     
     const lineD = 'M ' + coords.join(' L ');
     const areaD = `${lineD} L ${paddingLeft + chartWidth},${height - paddingBottom} L ${paddingLeft},${height - paddingBottom} Z`;
+    const rawLineD = 'M ' + rawCoords.join(' L ');
     
     // Grid Lines SVG
     let gridLinesSvg = '';
@@ -936,6 +940,9 @@ function renderOverallProgressChart() {
             
             <!-- Shaded Area -->
             <path d="${areaD}" fill="url(#overall-chart-grad)" />
+            
+            <!-- Raw Unsmoothed Line -->
+            <path d="${rawLineD}" fill="none" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" />
             
             <!-- Curve Line -->
             <path d="${lineD}" fill="none" stroke="var(--primary-gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.35));" />
