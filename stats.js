@@ -74,6 +74,14 @@ class StatsTracker {
     }
 
     getWorst(type, limit = 10, minSamples = 5) {
+        return this.getSpeedStats(type, limit, minSamples, 'desc');
+    }
+
+    getBest(type, limit = 10, minSamples = 5) {
+        return this.getSpeedStats(type, limit, minSamples, 'asc');
+    }
+
+    getSpeedStats(type, limit = 10, minSamples = 5, order = 'desc') {
         const dict = this.data[type];
         if (!dict) return [];
 
@@ -95,12 +103,23 @@ class StatsTracker {
             return (item.samples + item.mistakes) >= minSamples;
         });
 
-        // Sort by average time descending
-        stats.sort((a, b) => b.avgTime - a.avgTime);
+        if (order === 'asc') {
+            stats.sort((a, b) => a.avgTime - b.avgTime);
+        } else {
+            stats.sort((a, b) => b.avgTime - a.avgTime);
+        }
         return stats.slice(0, limit);
     }
 
     getMostMistakes(type, limit = 10, minSamples = 5) {
+        return this.getMistakesStats(type, limit, minSamples, 'desc');
+    }
+
+    getFewestMistakes(type, limit = 10, minSamples = 5) {
+        return this.getMistakesStats(type, limit, minSamples, 'asc');
+    }
+
+    getMistakesStats(type, limit = 10, minSamples = 5, order = 'desc') {
         const dict = this.data[type];
         if (!dict) return [];
 
@@ -125,8 +144,11 @@ class StatsTracker {
             return (item.samples + item.mistakes) >= minSamples;
         });
 
-        // Sort by mistake ratio descending
-        stats.sort((a, b) => b.mistakeRatio - a.mistakeRatio);
+        if (order === 'asc') {
+            stats.sort((a, b) => a.mistakeRatio - b.mistakeRatio);
+        } else {
+            stats.sort((a, b) => b.mistakeRatio - a.mistakeRatio);
+        }
         return stats.slice(0, limit);
     }
 }

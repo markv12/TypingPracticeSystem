@@ -445,6 +445,7 @@ nav button.active {
     color: var(--error-red);
     width: 30%;
     text-align: right;
+    white-space: nowrap;
 }
 
 /* Tooltip Styles */

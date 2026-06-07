@@ -92,9 +92,19 @@
                         <button id="min-seen-inc" class="num-btn">+</button>
                     </div>
                 </div>
+
+                <div class="filter-control">
+                    <label>List Mode:</label>
+                    <div class="segmented-control">
+                        <input type="radio" id="mode-worst" name="list-mode" value="worst" checked>
+                        <label for="mode-worst" class="segment-label">Worst</label>
+                        <input type="radio" id="mode-best" name="list-mode" value="best">
+                        <label for="mode-best" class="segment-label">Best</label>
+                    </div>
+                </div>
             </div>
 
-            <h3 class="section-title">Slowest Typing</h3>
+            <h3 class="section-title" id="typing-speed-title">Slowest Typing</h3>
             <div class="stats-grid">
                 <div class="stat-card">
                     <h4>Letters</h4>
@@ -134,7 +144,7 @@
                 </div>
             </div>
 
-            <h3 class="section-title">Most Mistakes</h3>
+            <h3 class="section-title" id="typing-mistakes-title">Most Mistakes</h3>
             <div class="stats-grid" style="margin-top: 1.5rem;">
                 <div class="stat-card">
                     <h4>Letters</h4>

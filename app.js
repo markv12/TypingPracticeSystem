@@ -497,6 +497,12 @@ function setupStatsControls() {
         });
     });
 
+    document.querySelectorAll('input[name="list-mode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (viewStats.classList.contains('active-view')) renderStats();
+        });
+    });
+
     document.getElementById('file-import').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -597,17 +603,37 @@ function renderStats() {
     // Overall Progress
     renderOverallProgressChart();
     
-    // Slowest
-    populateStatList('list-worst-letters', statsTracker.getWorst('letters', 20, minSamples), 'time');
-    populateStatList('list-worst-bigrams', statsTracker.getWorst('bigrams', 20, minSamples), 'time');
-    populateStatList('list-worst-trigrams', statsTracker.getWorst('trigrams', 20, minSamples), 'time');
-    populateStatList('list-worst-quadgrams', statsTracker.getWorst('quadgrams', 20, minSamples), 'time');
+    // Slowest / Fastest
+    const modeEl = document.querySelector('input[name="list-mode"]:checked');
+    const mode = modeEl ? modeEl.value : 'worst';
+    const titleEl = document.getElementById('typing-speed-title');
+    if (titleEl) {
+        titleEl.textContent = mode === 'worst' ? 'Slowest Typing' : 'Fastest Typing';
+    }
 
-    // Most Mistakes
-    populateStatList('list-mistakes-letters', statsTracker.getMostMistakes('letters', 20, minSamples), 'mistakes');
-    populateStatList('list-mistakes-bigrams', statsTracker.getMostMistakes('bigrams', 20, minSamples), 'mistakes');
-    populateStatList('list-mistakes-trigrams', statsTracker.getMostMistakes('trigrams', 20, minSamples), 'mistakes');
-    populateStatList('list-mistakes-quadgrams', statsTracker.getMostMistakes('quadgrams', 20, minSamples), 'mistakes');
+    const speedDataFn = mode === 'worst' 
+        ? (type) => statsTracker.getWorst(type, 26, minSamples)
+        : (type) => statsTracker.getBest(type, 26, minSamples);
+
+    populateStatList('list-worst-letters', speedDataFn('letters'), 'time');
+    populateStatList('list-worst-bigrams', speedDataFn('bigrams'), 'time');
+    populateStatList('list-worst-trigrams', speedDataFn('trigrams'), 'time');
+    populateStatList('list-worst-quadgrams', speedDataFn('quadgrams'), 'time');
+
+    // Mistakes (Most vs Fewest)
+    const mistakesTitleEl = document.getElementById('typing-mistakes-title');
+    if (mistakesTitleEl) {
+        mistakesTitleEl.textContent = mode === 'worst' ? 'Most Mistakes' : 'Fewest Mistakes';
+    }
+
+    const mistakesDataFn = mode === 'worst'
+        ? (type) => statsTracker.getMostMistakes(type, 26, minSamples)
+        : (type) => statsTracker.getFewestMistakes(type, 26, minSamples);
+
+    populateStatList('list-mistakes-letters', mistakesDataFn('letters'), 'mistakes');
+    populateStatList('list-mistakes-bigrams', mistakesDataFn('bigrams'), 'mistakes');
+    populateStatList('list-mistakes-trigrams', mistakesDataFn('trigrams'), 'mistakes');
+    populateStatList('list-mistakes-quadgrams', mistakesDataFn('quadgrams'), 'mistakes');
 }
 
 function populateStatList(elementId, items, primaryStat) {
