@@ -131,6 +131,8 @@ async function init() {
     document.addEventListener('keydown', handleKeyDown);
 }
 
+const wordSearchCache = new Map();
+
 function getPracticeWords(count) {
     const minSamples = parseInt(minSeenInput.value, 10) || 1;
     
@@ -154,10 +156,16 @@ function getPracticeWords(count) {
     const countRandom = count - countSlow - countMistake;
 
     function getWordContaining(seq) {
-        const matching = demoWords.filter(w => w.includes(seq));
+        let matching = wordSearchCache.get(seq);
+        if (!matching) {
+            matching = demoWords.filter(w => w.includes(seq));
+            wordSearchCache.set(seq, matching);
+        }
         if (matching.length > 0) {
             return matching[Math.floor(Math.random() * matching.length)];
         }
+        
+        statsTracker.removeSequence(seq);
         return demoWords[Math.floor(Math.random() * demoWords.length)];
     }
 
@@ -1030,8 +1038,8 @@ function renderOverallProgressChart() {
             
             tooltip.innerHTML = `
                 <div style="font-weight: 500; color: var(--primary-gold); margin-bottom: 2px;">Test ${idx + 1}</div>
-                <div style="font-size: 1.1rem; font-weight: bold; color: var(--text-main);">${Math.round(pt.rawVal)}${unitStr}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1px;">(Trend: ${Math.round(pt.val)}${unitStr})</div>
+                <div style="font-size: 1.1rem; font-weight: bold; color: var(--text-main);">${Math.round(pt.val)}${unitStr}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1px;">(Raw: ${Math.round(pt.rawVal)}${unitStr})</div>
             `;
             tooltip.style.display = 'block';
         }

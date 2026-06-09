@@ -47,6 +47,19 @@ class StatsTracker {
         targetDict[sequence].mistakes = (targetDict[sequence].mistakes || 0) + 1;
     }
 
+    removeSequence(sequence) {
+        let targetDict;
+        if (sequence.length === 1) targetDict = this.data.letters;
+        else if (sequence.length === 2) targetDict = this.data.bigrams;
+        else if (sequence.length === 3) targetDict = this.data.trigrams;
+        else if (sequence.length === 4) targetDict = this.data.quadgrams;
+        else return;
+        
+        if (targetDict && targetDict[sequence]) {
+            delete targetDict[sequence];
+        }
+    }
+
     exportData() {
         const json = JSON.stringify(this.data);
         const blob = new Blob([json], { type: "application/json" });
